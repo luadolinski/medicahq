@@ -498,11 +498,11 @@ elif menu == "📊 Métricas & Rendimiento":
             st.plotly_chart(fig_pie, use_container_width=True)
 
 # -------------------------------------------------------------
-# 8. IMPORTADOR MASIVO (Cuadernillo + Grilla Separada)
+# 8. IMPORTADOR MASIVO (Extractor Flexible de PDFs y Grillas)
 # -------------------------------------------------------------
 elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
     st.header("⚙️ Importación Masiva de Exámenes")
-    st.caption("Subí el cuadernillo de preguntas y la grilla de respuestas por separado.")
+    st.caption("Subí el cuadernillo de preguntas y pegá las respuestas de la grilla oficial[cite: 3, 6, 9].")
 
     tab_dual, tab_csv = st.tabs(["📄 Cuadernillo + Grilla Oficial", "📊 Cargar CSV / Excel"])
 
@@ -510,12 +510,12 @@ elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
         col_c1, col_c2 = st.columns(2)
         with col_c1:
             pdf_preguntas = st.file_uploader("1. Subir PDF del Cuadernillo (Preguntas)", type=["pdf"], key="cuadernillo")
-            nombre_examen = st.text_input("Etiqueta del Examen:", value="🇦🇷 Examen Único 2024")
+            nombre_examen = st.text_input("Etiqueta del Examen:", value="🇦🇷 Examen Único")
         with col_c2:
             grilla_input_type = st.radio("2. Formato de la Grilla de Respuestas:", ["Texto / Pegar Grilla", "PDF de Grilla"])
             grilla_texto = ""
             if grilla_input_type == "Texto / Pegar Grilla":
-                grilla_texto = st.text_area("Pegá acá la grilla (ej: 1 B, 2 C, 3 A... o 1-B, 2-C):", height=150)
+                grilla_texto = st.text_area("Pegá acá la grilla (ej: 1 B 2 C 3 A... o 1-B, 2-C o tabla de respuestas)[cite: 5, 6, 10]:", height=150)
             else:
                 pdf_grilla = st.file_uploader("Subir PDF de la Grilla", type=["pdf"], key="grilla_pdf")
 
@@ -523,67 +523,102 @@ elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
             if not pdf_preguntas:
                 st.error("Por favor subí primero el PDF del cuadernillo.")
             else:
-                # 1. Extraer grilla de respuestas a un diccionario {1: 'B', 2: 'C', ...}
+                # 1. Extracción de Grilla de Respuestas (Regex súper flexible)
                 respuestas_dict = {}
-                if grilla_texto:
-                    pares = re.findall(r'(\d+)[\s\-\:\.\)]+([a-dA-D])', grilla_texto)
-                    respuestas_dict = {int(num): letra.upper() for num, letra in pares}
-                elif grilla_input_type == "PDF de Grilla" and pdf_grilla:
+                texto_grilla_completo = grilla_texto
+                if grilla_input_type == "PDF de Grilla" and pdf_grilla:
                     reader_g = PdfReader(pdf_grilla)
-                    txt_g = "\n".join([p.extract_text() for p in reader_g.pages if p.extract_text()])
-                    pares = re.findall(r'(\d+)[\s\-\:\.\)]+([a-dA-D])', txt_g)
-                    respuestas_dict = {int(num): letra.upper() for num, letra in pares}
+                    texto_grilla_completo = "\n".join([p.extract_text() for p in reader_g.pages if p.extract_text()])
 
-                # 2. Extraer preguntas del cuadernillo
+                if texto_grilla_completo:
+                    # Captura formatos como '1 B', '1. B', '1) B', '1-B', '1:B' o tablas de dos columnas[cite: 5, 6, 10]
+                    pares = re.findall(r'(\d{1,3})\s*[\.\-\:\)\s\t]+([a-dA-D])(?![a-zA-Z])', texto_grilla_completo)
+                    for num, letra in pares:
+                        respuestas_dict[int(num)] = letra.upper()
+
+                # 2. Extracción de Texto del Cuadernillo
                 reader_p = PdfReader(pdf_preguntas)
-                full_text = "\n".join([p.extract_text() for p in reader_p.pages if p.extract_text()])
-                
-                patron = re.compile(
-                    r'(\d+)[\.\-\)]\s*(.*?)(?=\n[aA][\.\-\)])\n[aA][\.\-\)]\s*(.*?)\n[bB][\.\-\)]\s*(.*?)\n[cC][\.\-\)]\s*(.*?)\n[dD][\.\-\)]\s*(.*?)(?=\n\d+[\.\-\)]|\Z)',
-                    re.DOTALL
-                )
-                matches = patron.findall(full_text)
+                raw_text = ""
+                for page in reader_p.pages:
+                    t = page.extract_text()
+                    if t:
+                        raw_text += "\n" + t
 
-                # 3. Guardar en SQLite cruzando datos
+                # Limpieza de saltos de línea artificiales y normalización
+                clean_text = re.sub(r'Examen\s+Único\s+\d{4}', '', raw_text, flags=re.IGNORECASE)
+                clean_text = re.sub(r'Página\s+\d+\s+de\s+\d+', '', clean_text, flags=re.IGNORECASE)
+
+                # Segmentador flexible: divide el PDF por números de pregunta '1)', '1.', '1 -'[cite: 3, 5, 11]
+                question_blocks = re.split(r'\n(?=\s*\d{1,3}[\.\)\-]\s+)', clean_text)
+                
+                guardadas = 0
                 conn = get_db_connection()
                 c = conn.cursor()
-                guardadas = 0
 
-                for num_str, preg, a, b, c_opt, d in matches:
-                    num_int = int(num_str.strip())
-                    correcta_oficial = respuestas_dict.get(num_int, "A") # Si no está en grilla, queda 'A' por defecto
+                for block in question_blocks:
+                    # Verificar si el bloque arranca con un número de pregunta
+                    match_num = re.match(r'^\s*(\d{1,3})[\.\)\-]\s+(.*)', block, re.DOTALL)
+                    if not match_num:
+                        continue
                     
-                    # Clasificación simple por palabra clave
-                    p_low = preg.lower()
-                    area = "Clínica Médica"
-                    tema = "Módulo General"
-                    if any(k in p_low for k in ["embarazo", "gestant", "parto", "preeclampsia", "uterin", "ive"]):
-                        area = "Tocoginecología"
-                        tema = "Obstetricia y Salud Reproductiva"
-                    elif any(k in p_low for k in ["lactante", "niño", "pediat", "bronquiolitis", "vacuna", "deshidratación"]):
-                        area = "Pediatría"
-                        tema = "Pediatría y Puericultura"
-                    elif any(k in p_low for k in ["trauma", "neumotórax", "apendicitis", "colecistitis", "hernia", "quirúrg"]):
-                        area = "Cirugía General"
-                        tema = "Cirugía y Trauma"
-                    elif any(k in p_low for k in ["ley ", "derechos del paciente", "salud mental", "bioética"]):
-                        area = "Salud Pública y Leyes"
-                        tema = "Marco Legal y Salud Pública"
+                    num_int = int(match_num.group(1))
+                    contenido = match_num.group(2)
 
-                    q_id = f"{nombre_examen[:8]}-{num_int}"
-                    c.execute('''
-                        INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (
-                        q_id, nombre_examen, area, tema, "Prioridad A",
-                        preg.strip(), a.strip(), b.strip(), c_opt.strip(), d.strip(),
-                        correcta_oficial, "Respuesta oficial según grilla de examen.",
-                        "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0
-                    ))
-                    guardadas += 1
+                    # Buscar las 4 opciones A, B, C, D dentro del bloque[cite: 3, 10, 11]
+                    partes_opciones = re.split(r'\n?\s*[\(\[]?([a-dA-D])[\)\]\.\-]\s+', contenido)
+                    
+                    if len(partes_opciones) >= 9:
+                        # Estructura: [enunciado, 'a', texto_a, 'b', texto_b, 'c', texto_c, 'd', texto_d]
+                        enunciado = partes_opciones[0].strip().replace('\n', ' ')
+                        op_dict = {}
+                        for i in range(1, len(partes_opciones), 2):
+                            letra = partes_opciones[i].upper()
+                            texto_op = partes_opciones[i+1].strip().replace('\n', ' ')
+                            op_dict[letra] = texto_op
+
+                        op_a = op_dict.get('A', '')
+                        op_b = op_dict.get('B', '')
+                        op_c = op_dict.get('C', '')
+                        op_d = op_dict.get('D', '')
+
+                        if op_a and op_b:
+                            correcta_oficial = respuestas_dict.get(num_int, "A")
+                            
+                            # Clasificación temática automática
+                            p_low = (enunciado + " " + op_a).lower()
+                            area = "Clínica Médica"
+                            tema = "Módulo General"
+                            if any(k in p_low for k in ["embaraz", "gestant", "parto", "preeclampsia", "uterin", "ive", "ile", "cérvix", "pap"]):
+                                area = "Tocoginecología"
+                                tema = "Obstetricia y Ginecología"
+                            elif any(k in p_low for k in ["lactante", "niño", "pediat", "bronquiolitis", "vacuna", "deshidratación", "puericultura"]):
+                                area = "Pediatría"
+                                tema = "Pediatría y Puericultura"
+                            elif any(k in p_low for k in ["trauma", "neumotórax", "apendicitis", "colecistitis", "hernia", "quirúrg", "atls"]):
+                                area = "Cirugía General"
+                                tema = "Cirugía y Trauma"
+                            elif any(k in p_low for k in ["ley ", "derechos del paciente", "salud mental", "bioética", "epidemiolog"]):
+                                area = "Salud Pública y Leyes"
+                                tema = "Marco Legal y Bioética"
+
+                            q_id = f"{nombre_examen[:6]}-{num_int}"
+                            c.execute('''
+                                INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ''', (
+                                q_id, nombre_examen, area, tema, "Prioridad A",
+                                enunciado, op_a, op_b, op_c, op_d,
+                                correcta_oficial, "Respuesta oficial según grilla del examen[cite: 6, 10].",
+                                "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0
+                            ))
+                            guardadas += 1
 
                 conn.commit()
                 conn.close()
-                st.success(f"¡Éxito! Se extrajeron {guardadas} preguntas y se cruzaron con {len(respuestas_dict)} respuestas de la grilla.")
+
+                if guardadas > 0:
+                    st.success(f"🎉 ¡Éxito total! Se extrajeron {guardadas} preguntas completas y se vincularon con {len(respuestas_dict)} respuestas oficiales.")
+                else:
+                    st.warning("No se detectaron preguntas con el formato estándar. Si tu PDF es una imagen escaneada sin texto seleccionable, cargalo a través de la pestaña 'Cargar CSV / Excel'.")
 
     with tab_csv:
         st.subheader("Carga vía Planilla CSV")
