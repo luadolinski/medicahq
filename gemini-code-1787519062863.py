@@ -498,59 +498,109 @@ elif menu == "📊 Métricas & Rendimiento":
             st.plotly_chart(fig_pie, use_container_width=True)
 
 # -------------------------------------------------------------
-# 8. IMPORTADOR MASIVO (PDFs y CSV)
+# 8. IMPORTADOR MASIVO (Cuadernillo + Grilla Separada)
 # -------------------------------------------------------------
 elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
     st.header("⚙️ Importación Masiva de Exámenes")
-    st.caption("Cargá directamente tus archivos CSV o PDFs de exámenes pasados.")
+    st.caption("Subí el cuadernillo de preguntas y la grilla de respuestas por separado.")
 
-    t_csv, t_pdf = st.tabs(["Cargar Archivo CSV / Excel", "Subir PDFs de Exámenes"])
+    tab_dual, tab_csv = st.tabs(["📄 Cuadernillo + Grilla Oficial", "📊 Cargar CSV / Excel"])
 
-    with t_csv:
-        uploaded_csv = st.file_uploader("Subir archivo CSV estructurado", type=["csv"])
-        if uploaded_csv is not None:
-            df_up = pd.read_csv(uploaded_csv)
-            st.write("Vista previa de los datos a importar:")
-            st.dataframe(df_up.head(3))
-            if st.button("Guardar en la Base de Datos"):
+    with tab_dual:
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            pdf_preguntas = st.file_uploader("1. Subir PDF del Cuadernillo (Preguntas)", type=["pdf"], key="cuadernillo")
+            nombre_examen = st.text_input("Etiqueta del Examen:", value="🇦🇷 Examen Único 2024")
+        with col_c2:
+            grilla_input_type = st.radio("2. Formato de la Grilla de Respuestas:", ["Texto / Pegar Grilla", "PDF de Grilla"])
+            grilla_texto = ""
+            if grilla_input_type == "Texto / Pegar Grilla":
+                grilla_texto = st.text_area("Pegá acá la grilla (ej: 1 B, 2 C, 3 A... o 1-B, 2-C):", height=150)
+            else:
+                pdf_grilla = st.file_uploader("Subir PDF de la Grilla", type=["pdf"], key="grilla_pdf")
+
+        if st.button("🚀 Procesar, Cruzar y Guardar Preguntas"):
+            if not pdf_preguntas:
+                st.error("Por favor subí primero el PDF del cuadernillo.")
+            else:
+                # 1. Extraer grilla de respuestas a un diccionario {1: 'B', 2: 'C', ...}
+                respuestas_dict = {}
+                if grilla_texto:
+                    pares = re.findall(r'(\d+)[\s\-\:\.\)]+([a-dA-D])', grilla_texto)
+                    respuestas_dict = {int(num): letra.upper() for num, letra in pares}
+                elif grilla_input_type == "PDF de Grilla" and pdf_grilla:
+                    reader_g = PdfReader(pdf_grilla)
+                    txt_g = "\n".join([p.extract_text() for p in reader_g.pages if p.extract_text()])
+                    pares = re.findall(r'(\d+)[\s\-\:\.\)]+([a-dA-D])', txt_g)
+                    respuestas_dict = {int(num): letra.upper() for num, letra in pares}
+
+                # 2. Extraer preguntas del cuadernillo
+                reader_p = PdfReader(pdf_preguntas)
+                full_text = "\n".join([p.extract_text() for p in reader_p.pages if p.extract_text()])
+                
+                patron = re.compile(
+                    r'(\d+)[\.\-\)]\s*(.*?)(?=\n[aA][\.\-\)])\n[aA][\.\-\)]\s*(.*?)\n[bB][\.\-\)]\s*(.*?)\n[cC][\.\-\)]\s*(.*?)\n[dD][\.\-\)]\s*(.*?)(?=\n\d+[\.\-\)]|\Z)',
+                    re.DOTALL
+                )
+                matches = patron.findall(full_text)
+
+                # 3. Guardar en SQLite cruzando datos
                 conn = get_db_connection()
                 c = conn.cursor()
-                for _, r in df_up.iterrows():
+                guardadas = 0
+
+                for num_str, preg, a, b, c_opt, d in matches:
+                    num_int = int(num_str.strip())
+                    correcta_oficial = respuestas_dict.get(num_int, "A") # Si no está en grilla, queda 'A' por defecto
+                    
+                    # Clasificación simple por palabra clave
+                    p_low = preg.lower()
+                    area = "Clínica Médica"
+                    tema = "Módulo General"
+                    if any(k in p_low for k in ["embarazo", "gestant", "parto", "preeclampsia", "uterin", "ive"]):
+                        area = "Tocoginecología"
+                        tema = "Obstetricia y Salud Reproductiva"
+                    elif any(k in p_low for k in ["lactante", "niño", "pediat", "bronquiolitis", "vacuna", "deshidratación"]):
+                        area = "Pediatría"
+                        tema = "Pediatría y Puericultura"
+                    elif any(k in p_low for k in ["trauma", "neumotórax", "apendicitis", "colecistitis", "hernia", "quirúrg"]):
+                        area = "Cirugía General"
+                        tema = "Cirugía y Trauma"
+                    elif any(k in p_low for k in ["ley ", "derechos del paciente", "salud mental", "bioética"]):
+                        area = "Salud Pública y Leyes"
+                        tema = "Marco Legal y Salud Pública"
+
+                    q_id = f"{nombre_examen[:8]}-{num_int}"
                     c.execute('''
                         INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ''', (str(r.get('id')), str(r.get('examen_origen')), str(r.get('area')), str(r.get('tema')),
-                          str(r.get('incidencia', 'Prioridad A')), str(r.get('pregunta')), str(r.get('opcion_a')),
-                          str(r.get('opcion_b')), str(r.get('opcion_c')), str(r.get('opcion_d')), str(r.get('correcta')),
-                          str(r.get('justificacion', '')), str(r.get('drive_link', '')), str(datetime.now().date()), 1, 2.5, 0))
-                conn.commit()
-                conn.close()
-                st.success(f"¡Se importaron {len(df_up)} preguntas exitosamente!")
+                    ''', (
+                        q_id, nombre_examen, area, tema, "Prioridad A",
+                        preg.strip(), a.strip(), b.strip(), c_opt.strip(), d.strip(),
+                        correcta_oficial, "Respuesta oficial según grilla de examen.",
+                        "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0
+                    ))
+                    guardadas += 1
 
-    with t_pdf:
-        uploaded_pdfs = st.file_uploader("Arrastrar varios PDFs de exámenes", type=["pdf"], accept_multiple_files=True)
-        if uploaded_pdfs:
-            st.info(f"Se seleccionaron {len(uploaded_pdfs)} archivos.")
-            if st.button("Extraer Texto e Indexar"):
-                total_preguntas = 0
-                conn = get_db_connection()
-                c = conn.cursor()
-                for pdf_file in uploaded_pdfs:
-                    reader = PdfReader(pdf_file)
-                    full_text = "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
-                    
-                    # Regex para separar preguntas y opciones A-D
-                    pattern = re.compile(r'(\d+)[\.\-\)]\s*(.*?)(?=\n[aA][\.\-\)])\n[aA][\.\-\)]\s*(.*?)\n[bB][\.\-\)]\s*(.*?)\n[cC][\.\-\)]\s*(.*?)\n[dD][\.\-\)]\s*(.*?)(?=\n\d+[\.\-\)]|\Z)', re.DOTALL)
-                    matches = pattern.findall(full_text)
-                    
-                    examen_nombre = pdf_file.name.replace(".pdf", "")
-                    for num, preg, a, b, c_opt, d in matches:
-                        q_id = f"{examen_nombre[:6]}-{num.strip()}"
-                        c.execute('''
-                            INSERT OR IGNORE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (q_id, examen_nombre, "Clínica Médica", "Módulo General", "Prioridad A",
-                              preg.strip(), a.strip(), b.strip(), c_opt.strip(), d.strip(), "A",
-                              "Pendiente de justificación", "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0))
-                        total_preguntas += 1
                 conn.commit()
                 conn.close()
-                st.success(f"¡Procesamiento completo! Se extrajeron e indexaron {total_preguntas} preguntas.")
+                st.success(f"¡Éxito! Se extrajeron {guardadas} preguntas y se cruzaron con {len(respuestas_dict)} respuestas de la grilla.")
+
+    with tab_csv:
+        st.subheader("Carga vía Planilla CSV")
+        up_csv = st.file_uploader("Subir CSV", type=["csv"])
+        if up_csv and st.button("Importar CSV"):
+            df = pd.read_csv(up_csv)
+            conn = get_db_connection()
+            c = conn.cursor()
+            for _, r in df.iterrows():
+                c.execute('''
+                    INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    str(r.get('id')), str(r.get('examen_origen')), str(r.get('area')), str(r.get('tema')),
+                    str(r.get('incidencia', 'Prioridad A')), str(r.get('pregunta')), str(r.get('opcion_a')),
+                    str(r.get('opcion_b')), str(r.get('opcion_c')), str(r.get('opcion_d')), str(r.get('correcta')),
+                    str(r.get('justificacion', '')), str(r.get('drive_link', '')), str(datetime.now().date()), 1, 2.5, 0
+                ))
+            conn.commit()
+            conn.close()
+            st.success(f"Se cargaron {len(df)} preguntas del archivo.")
