@@ -75,7 +75,7 @@ def init_db():
         )
     ''')
     
-    # Tabla de Registro de Errores e Historial por Usuario
+    # Tabla de Historial / Errores
     c.execute('''
         CREATE TABLE IF NOT EXISTS error_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,10 +91,16 @@ def init_db():
         )
     ''')
     
+    # Migración automática de columna faltante
+    try:
+        c.execute("ALTER TABLE error_log ADD COLUMN username TEXT")
+    except sqlite3.OperationalError:
+        pass
+    
     # Crear usuario inicial por defecto
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)", ("luana", hash_password("medica2026"), "Dra. Luana"))
+        c.execute("INSERT INTO users VALUES (?, ?, ?)", ("doctores", hash_password("medicos2026"), "Dra. Luana"))
         
     conn.commit()
     conn.close()
