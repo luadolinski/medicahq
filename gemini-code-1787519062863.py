@@ -2,13 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import sqlite3
-import json
 from datetime import datetime, timedelta
-import re
-from pypdf import PdfReader
+import random
+import hashlib
+import json
+import google.generativeai as genai
 
 # -------------------------------------------------------------
-# CONFIGURACIÓN GENERAL Y ESTILO
+# CONFIGURACIÓN DE PÁGINA
 # -------------------------------------------------------------
 st.set_page_config(
     page_title="Médica HQ | Residencias & Revalida",
@@ -18,6 +19,16 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
+# CONFIGURACIÓN DE GEMINI API
+# -------------------------------------------------------------
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
+try:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-1.5-flash")
+except Exception as e:
+    model = None
+
+# -------------------------------------------------------------
 # BASE DE DATOS LOCAL (SQLite Persistente)
 # -------------------------------------------------------------
 def get_db_connection():
@@ -25,10 +36,23 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
-    # Tabla de preguntas
+    
+    # Tabla de Usuarios
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            username TEXT PRIMARY KEY,
+            password_hash TEXT,
+            nombre TEXT
+        )
+    ''')
+    
+    # Tabla de Choices
     c.execute('''
         CREATE TABLE IF NOT EXISTS choices (
             id TEXT PRIMARY KEY,
@@ -50,10 +74,12 @@ def init_db():
             repetitions INTEGER
         )
     ''')
-    # Tabla de historial y errores
+    
+    # Tabla de Registro de Errores e Historial por Usuario
     c.execute('''
         CREATE TABLE IF NOT EXISTS error_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
             choice_id TEXT,
             fecha TIMESTAMP,
             respuesta_dada TEXT,
@@ -64,236 +90,199 @@ def init_db():
             FOREIGN KEY (choice_id) REFERENCES choices (id)
         )
     ''')
+    
+    # Crear usuario inicial por defecto
+    c.execute("SELECT COUNT(*) FROM users")
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO users VALUES (?, ?, ?)", ("luana", hash_password("medica2026"), "Dra. Luana"))
+        
     conn.commit()
     conn.close()
 
 init_db()
 
 # -------------------------------------------------------------
-# CARGA DE PREGUNTAS SEMILLA (High-Yield Inicial)
+# CONTROL DE SESIÓN
 # -------------------------------------------------------------
-def seed_initial_data():
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM choices")
-    if c.fetchone()[0] == 0:
-        sample_questions = [
-            ("AR-2026-N-01", "🇦🇷 Examen Único 2026", "Tocoginecología", "Preeclampsia y Trastornos Hipertensivos", "Prioridad A",
-             "Primigesta de 33 semanas ingresa con TA 165/110 mmHg, cefalea intensa y epigastralgia. En orina presenta proteinuria +++. ¿Cuál es la conducta inicial prioritaria?",
-             "Indicar reposo absoluto e iniciar alfametildopa 500 mg VO cada 8 h",
-             "Administrar Labetalol EV y esquema de impregnación con Sulfato de Magnesio EV",
-             "Indicar Hidroclorotiazida oral y Betametasona IM esperando 48 h",
-             "Realizar cesárea de urgencia sin estabilización previa",
-             "B", "En preeclampsia con criterios de severidad se debe controlar la crisis hipertensiva (Labetalol/Hidralazina EV) y prevenir convulsiones con Sulfato de Magnesio (esquema Zuspan/Sibai) previo a cualquier otra conducta.",
-             "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0),
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+def login_form():
+    st.title("🩺 Médica HQ | Ingreso a la Plataforma")
+    st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        u_input = st.text_input("Usuario", key="login_user")
+        p_input = st.text_input("Contraseña", type="password", key="login_pass")
+        
+        if st.button("Iniciar Sesión", use_container_width=True):
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE username = ? AND password_hash = ?", (u_input.lower(), hash_password(p_input)))
+            usr = c.fetchone()
+            conn.close()
             
-            ("AR-2026-C-02", "🇦🇷 CABA 2026", "Pediatría", "IRAB - Bronquiolitis", "Prioridad A",
-             "Lactante de 4 meses con primer episodio de sibilancias, tiraje subcostal y SatO2 91% al aire ambiente. No presenta antecedentes patológicos. Según la SAP, ¿cuál es el pilar del tratamiento?",
-             "Nebulizaciones continuas con Salbutamol e hidrocortisona EV",
-             "Kinesioterapia respiratoria tres veces al día y amoxicilina oral",
-             "Medidas de soporte, permeabilización de vía aérea y oxigenoterapia si SatO2 < 92%",
-             "Indicar antibióticos macrólidos y bromuro de ipratropio reglado",
-             "C", "En el primer episodio de bronquiolitis aguda, la recomendación de la SAP se basa en sostén hídrico, desobstrucción nasal y oxígeno si SatO2 < 92%. No se aconseja el uso rutinario de broncodilatadores ni kinesiología.",
-             "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0),
-
-            ("AR-2024-U-03", "🇦🇷 Examen Único 2024", "Cirugía General", "Trauma Torácico ATLS", "Prioridad A",
-             "Varón de 22 años politraumatizado ingresa con TA 70/40, ingurgitación yugular, hipoventilación y timpanismo en hemitórax derecho, con tráquea desviada a la izquierda. ¿Cuál es el paso inmediato?",
-             "Solicitar radiografía de tórax portátil urgente",
-             "Realizar intubación orotraqueal con secuencia rápida",
-             "Descompresión inmediata con aguja/catéter en el 4.º o 5.º espacio intercostal línea axilar anterior derecha",
-             "Realizar ecografía FAST toracoabdominal",
-             "C", "Es un Neumotórax a Tensión. Su diagnóstico es 100% clínico y no debe retrasarse con métodos complementarios. Requiere descompresión torácica inmediata con aguja/toracostomía de rescate.",
-             "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0),
-
-            ("BR-2023-R-04", "🇧🇷 Revalida INEP 2023", "Clínica Médica", "Dengue y Arbovirosis", "Prioridad A",
-             "Paciente de 42 años con dengue ingresa al 5.° día afebril pero con dolor abdominal continuo y vómitos persistentes. TA 90/60 mmHg. ¿A qué grupo de riesgo pertenece y cuál es la conducta según el MS?",
-             "Grupo A: Paracetamol e hidratación oral domiciliaria",
-             "Grupo B: Observación en guardia y esperar hematocrito para decidir",
-             "Grupo C: Internación inmediata e inicio de reposición hídrica parenteral agresiva con cristaloides",
-             "Grupo D: Transfusión profiláctica de plaquetas inmediata",
-             "C", "Presenta signos de alarma (dolor abdominal continuo y vómitos), clasificándose como Dengue Grupo C. Requiere internación y expansión inmediata con cristaloides sin supeditar el inicio al laboratorio.",
-             "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0),
-
-            ("AR-2026-P-05", "🇦🇷 PBA 2026", "Salud Pública y Leyes", "Ley 26.529 Derechos del Paciente", "Prioridad A",
-             "Paciente lúcido de 45 años ingresa con peritonitis por apendicitis perforada y rechaza la cirugía tras ser informado de los riesgos. Según la Ley 26.529, ¿cuál es la conducta legal adecuada?",
-             "Pedir autorización judicial urgente para operarlo de inmediato",
-             "Respetar la decisión del paciente y dejar constancia fehaciente en la Historia Clínica con su firma",
-             "Operar con consentimiento firmado por los familiares directos",
-             "Convocar un comité de bioética para obligarlo al tratamiento",
-             "B", "La Ley 26.529 consagra la autonomía de la voluntad: todo paciente competente puede aceptar o rechazar terapias, debiendo dejarse constancia firmada en la Historia Clínica.",
-             "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0)
-        ]
-        c.executemany('''
-            INSERT INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', sample_questions)
-        conn.commit()
-    conn.close()
-
-seed_initial_data()
-
-# -------------------------------------------------------------
-# LÓGICA DE REPASO ESPACIADO (SM-2 Simplificado)
-# -------------------------------------------------------------
-def update_sm2(choice_id, rating):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT interval_days, ease_factor, repetitions FROM choices WHERE id = ?", (choice_id,))
-    row = c.fetchone()
-    if row:
-        interval, ef, reps = row["interval_days"], row["ease_factor"], row["repetitions"]
-        if rating == "Difícil":
-            reps = 0
-            interval = 1
-            ef = max(1.3, ef - 0.2)
-        elif rating == "Bien":
-            if reps == 0:
-                interval = 1
-            elif reps == 1:
-                interval = 3
+            if usr:
+                st.session_state.authenticated = True
+                st.session_state.current_user = usr["username"]
+                st.session_state.user_name = usr["nombre"]
+                st.rerun()
             else:
-                interval = int(interval * ef)
-            reps += 1
-        elif rating == "Muy Fácil":
-            if reps == 0:
-                interval = 3
-            elif reps == 1:
-                interval = 7
-            else:
-                interval = int(interval * ef * 1.3)
-            reps += 1
-            ef += 0.15
+                st.error("Usuario o contraseña incorrectos.")
+                
+    with col2:
+        with st.expander("Crear una nueva cuenta"):
+            new_u = st.text_input("Nuevo Usuario")
+            new_n = st.text_input("Tu Nombre")
+            new_p = st.text_input("Nueva Contraseña", type="password")
+            if st.button("Registrarse"):
+                if new_u and new_p:
+                    conn = get_db_connection()
+                    c = conn.cursor()
+                    try:
+                        c.execute("INSERT INTO users VALUES (?, ?, ?)", (new_u.lower(), hash_password(new_p), new_n))
+                        conn.commit()
+                        st.success("Cuenta creada exitosamente. Ya podés iniciar sesión.")
+                    except:
+                        st.error("El usuario ya existe.")
+                    conn.close()
 
-        next_date = datetime.now().date() + timedelta(days=interval)
-        c.execute('''
-            UPDATE choices 
-            SET interval_days = ?, ease_factor = ?, repetitions = ?, next_review = ?
-            WHERE id = ?
-        ''', (interval, ef, reps, str(next_date), choice_id))
-        conn.commit()
-    conn.close()
+if not st.session_state.authenticated:
+    login_form()
+    st.stop()
 
 # -------------------------------------------------------------
-# BARRA LATERAL Y NAVEGACIÓN
+# BARRA LATERAL
 # -------------------------------------------------------------
-st.sidebar.title("🩺 Médica HQ")
-st.sidebar.caption("Residencias Argentina & Revalida Brasil")
+st.sidebar.markdown(f"👤 **{st.session_state.user_name}** (`@{st.session_state.current_user}`)")
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state.authenticated = False
+    st.session_state.current_user = None
+    st.rerun()
 
-filtro_pais = st.sidebar.selectbox("Filtro de Examen Activo", ["🔀 Modo Dual / Integrado", "🇦🇷 Solo Argentina", "🇧🇷 Solo Brasil"])
+st.sidebar.markdown("---")
+filtro_pais = st.sidebar.selectbox("Enfoque de Examen", ["🔀 Modo Dual / Integrado", "🇦🇷 Solo Argentina", "🇧🇷 Solo Brasil"])
 
 menu = st.sidebar.radio(
-    "Módulos de Estudio",
+    "Navegación Principal",
     [
-        "🏠 Dashboard & Repaso de Hoy",
-        "📅 Cronograma de Estudio",
-        "📚 Temario & Algoritmos",
+        "🏠 Dashboard & Repaso SRS",
+        "📅 Cronograma Semanal Detallado",
+        "📚 Temario, Algoritmos & Quiz",
+        "✨ Generador de Choices con IA",
         "📝 Banco de Choices & Simulacros",
         "📕 Cuaderno de Errores",
         "⚖️ Guía Comparativa AR vs BR",
-        "📊 Métricas & Rendimiento",
-        "⚙️ Importar Exámenes (PDF / CSV)"
+        "📊 Estadísticas de Rendimiento",
+        "⚙️ Cargar CSV / Exámenes"
     ]
 )
 
 # -------------------------------------------------------------
-# 1. DASHBOARD & REPASO DEL DÍA
+# 1. DASHBOARD & REPASO SRS
 # -------------------------------------------------------------
-if menu == "🏠 Dashboard & Repaso de Hoy":
-    st.header("⚡ Panel de Control Diario")
+if menu == "🏠 Dashboard & Repaso SRS":
+    st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
     
     conn = get_db_connection()
-    total_q = pd.read_sql("SELECT COUNT(*) as count FROM choices", conn).iloc[0]['count']
-    total_reviews = pd.read_sql("SELECT COUNT(*) as count FROM error_log", conn).iloc[0]['count']
-    total_correct = pd.read_sql("SELECT COUNT(*) as count FROM error_log WHERE es_correcta = 1", conn).iloc[0]['count']
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM error_log WHERE username = ?", (st.session_state.current_user,))
+    total_hechas = c.fetchone()[0]
+    
+    c.execute("SELECT COUNT(*) FROM error_log WHERE username = ? AND es_correcta = 1", (st.session_state.current_user,))
+    total_correctas = c.fetchone()[0]
     conn.close()
 
-    accuracy = int((total_correct / total_reviews * 100)) if total_reviews > 0 else 0
+    precision = int((total_correctas / total_hechas * 100)) if total_hechas > 0 else 0
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("🔥 Racha de Estudio", "12 Días")
-    col2.metric("🎯 Precisión Global", f"{accuracy}%")
-    col3.metric("📝 Choices Resueltos", str(total_reviews))
-    col4.metric("📚 Banco Total", f"{total_q} preguntas")
+    col1.metric("🔥 Racha Activa", "14 Días")
+    col2.metric("🎯 Precisión Personal", f"{precision}%")
+    col3.metric("📝 Choices Realizados", str(total_hechas))
+    col4.metric("📅 Estado de Meta", "Semana 1 / Tocogineco")
 
     st.markdown("---")
-    st.subheader("🧠 Choices Programados para Repasar Hoy (Curva del Olvido)")
+    st.subheader("🧠 Repaso Espaciado Programado para Hoy")
     
     today = str(datetime.now().date())
     conn = get_db_connection()
-    due_q = pd.read_sql("SELECT * FROM choices WHERE next_review <= ?", conn, params=(today,))
+    due_choices = pd.read_sql("SELECT * FROM choices WHERE next_review <= ?", conn, params=(today,))
     conn.close()
 
-    if len(due_q) == 0:
-        st.success("🎉 ¡Estás al día! No tenés preguntas pendientes de repaso espaciado para hoy.")
+    if len(due_choices) == 0:
+        st.success("🎉 ¡Estás al día! No tenés preguntas pendientes de la curva del olvido.")
     else:
-        st.info(f"Tenés **{len(due_q)} choices** que alcanzaron su intervalo de repaso.")
-        for idx, row in due_q.iterrows():
+        st.info(f"Tenés **{len(due_choices)} choices** listos para consolidar memoria de largo plazo.")
+        for idx, row in due_choices.iterrows():
             with st.expander(f"📌 {row['area']} | {row['tema']} ({row['examen_origen']})"):
                 st.write(f"**{row['pregunta']}**")
                 st.write(f"A) {row['opcion_a']}")
                 st.write(f"B) {row['opcion_b']}")
                 st.write(f"C) {row['opcion_c']}")
                 st.write(f"D) {row['opcion_d']}")
-                if st.button("Ver Justificación", key=f"dash_rev_{row['id']}"):
+                if st.button("Ver Respuesta Oficial", key=f"srs_btn_{row['id']}"):
                     st.success(f"**Opción Correcta: {row['correcta']}**")
                     st.write(row['justificacion'])
 
 # -------------------------------------------------------------
-# 2. CRONOGRAMA DINÁMICO
+# 2. CRONOGRAMA SEMANAL DETALLADO
 # -------------------------------------------------------------
-elif menu == "📅 Cronograma de Estudio":
-    st.header("📅 Cronograma de Estudio (Agosto a Diciembre)")
-    st.caption("Planificación estructurada de alta incidencia para trabajar y estudiar sin saturación[cite: 1, 2].")
+elif menu == "📅 Cronograma Semanal Detallado":
+    st.header("📅 Cronograma de Estudio Detallado (Día por Día)")
+    st.caption("Planificación estructurada de lunes a viernes (1 a 2 horas diarias) para compatibilizar trabajo y estudio.")
 
-    cronograma_data = [
-        {"Semana": "Semana 1", "Bloque": "Tocoginecología", "Tema Principal": "Preeclampsia y Síndromes Hipertensivos del Embarazo[cite: 1, 2]", "Incidencia": "Prioridad A", "Estado": "Completado"},
-        {"Semana": "Semana 2", "Bloque": "Tocoginecología", "Tema Principal": "Hemorragias 1° y 3° Trimestre + Ley IVE/ILE 27.610[cite: 2]", "Incidencia": "Prioridad A", "Estado": "En Curso"},
-        {"Semana": "Semana 3", "Bloque": "Tocoginecología", "Tema Principal": "Infecciones Gestacionales (Sífilis/TORCH) + Vacuna VSR[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 4", "Bloque": "Tocoginecología", "Tema Principal": "Tamizaje Cérvix (PAP/DNA-HPV) + Anticoncepción[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 5", "Bloque": "Pediatría", "Tema Principal": "IRAB: Bronquiolitis, Neumonía y Crup[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 6", "Bloque": "Pediatría", "Tema Principal": "Diarrea Aguda (Planes OMS) y SUH[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 7", "Bloque": "Pediatría", "Tema Principal": "Puericultura, Hitos de Desarrollo y Sueño Seguro SAP[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 8", "Bloque": "Pediatría", "Tema Principal": "Calendario de Vacunación Nacional + Neonatología[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 9", "Bloque": "Clínica Médica", "Tema Principal": "Cardiología: HTA, Crisis HTA, SCA y FA[cite: 1, 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 10", "Bloque": "Clínica Médica", "Tema Principal": "Infectología: Dengue, Tuberculosis (GeneXpert) y VIH[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 11", "Bloque": "Clínica Médica", "Tema Principal": "Endocrino: Diabetes Tipo 2 y Cetoacidosis Diabética[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 12", "Bloque": "Clínica Médica", "Tema Principal": "Nefrología, Medio Interno y ACV Isquémico[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 13", "Bloque": "Clínica Médica", "Tema Principal": "Endemias Brasil (Chagas, Leishmania) y Meningitis[cite: 2]", "Incidencia": "Prioridad B", "Estado": "Pendiente"},
-        {"Semana": "Semana 14", "Bloque": "Cirugía General", "Tema Principal": "Trauma ATLS (Neumotórax a Tensión, Choque, Quemaduras)[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 15", "Bloque": "Cirugía General", "Tema Principal": "Abdomen Agudo Inflamatorio (Apendicitis, Biliar, Diverticulitis)[cite: 1, 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 16", "Bloque": "Cirugía General", "Tema Principal": "Oclusión Intestinal, Hernias y Cadera Dolorosa[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 17", "Bloque": "Salud Pública & SUS", "Tema Principal": "Epidemiología Básica, Bioética y Salud Mental (Delirium/Agitación)[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 18", "Bloque": "Salud Pública & SUS", "Tema Principal": "Leyes Sanitarias AR (26.529/26.657/25.929) vs. Leyes SUS BR (8080/8142)[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"},
-        {"Semana": "Semana 19-20", "Bloque": "Consolidación", "Tema Principal": "Baterías de Simulacros Intensivos + Cuaderno de Errores[cite: 2]", "Incidencia": "Prioridad A", "Estado": "Pendiente"}
-    ]
-    df_crono = pd.DataFrame(cronograma_data)
-    st.dataframe(df_crono, use_container_width=True, hide_index=True)
+    cronograma_desglosado = {
+        "Semana 1 (Tocoginecología: Trastornos Hipertensivos)": [
+            {"Día": "Lunes", "Tema Específico": "Preeclampsia sin Criterios de Severidad: Diagnóstico y seguimiento ambulatorio.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Preeclampsia con Criterios de Severidad: Protocolo Labetalol/Hidralazina EV + Sulfato de Magnesio.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Eclampsia y Síndrome HELLP: Diagnóstico de laboratorio y manejo de urgencia obstétrica.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Hipertensión Crónica y Preeclampsia Sobreimpuesta: Guías MSAL 2024 vs. APS Brasil.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Repaso Integrador + Batería de choices de exámenes anteriores.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 2 (Tocoginecología: Hemorragias y Salud Sexual)": [
+            {"Día": "Lunes", "Tema Específico": "Hemorragias de la 1ª Mitad: Aborto y Embarazo Ectópico (Metotrexato vs. Quirúrgico).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Hemorragias de la 2ª Mitad: DPPNI vs. Placenta Previa vs. Rotura Uterina.", "Meta": "Cuadro diferencial + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Interrupción Voluntaria del Embarazo: Ley 27.610 (IVE/ILE) y Misoprostol.", "Meta": "Lectura Ley + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Anticoncepción de Emergencia y Criterios Médicos de Elegibilidad OMS.", "Meta": "Lectura Guía + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Hemorragia Postparto (Atonía Uterina) + Batería semanal de choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 5 (Pediatría: Infecciones Respiratorias IRAB)": [
+            {"Día": "Lunes", "Tema Específico": "Bronquiolitis Aguda: Criterios de gravedad (Score de Tal) y soporte hídrico.", "Meta": "Lectura SAP + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Amoxicilina oral e internación.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Laringitis y Crup: Dexametasona y Adrenalina nebulizada.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Crisis Asmática Pediátrica: Escalonamiento terapéutico GINA/SAP.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Batería integradora de IRAB pediátricas.", "Meta": "20 choices + Error Log"}
+        ]
+    }
+
+    sem_select = st.selectbox("Seleccioná la semana a visualizar en detalle:", list(cronograma_desglosado.keys()))
+    df_sem = pd.DataFrame(cronograma_desglosado[sem_select])
+    st.dataframe(df_sem, use_container_width=True, hide_index=True)
 
 # -------------------------------------------------------------
-# 3. TEMARIO & ALGORITMOS
+# 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
 # -------------------------------------------------------------
-elif menu == "📚 Temario & Algoritmos":
-    st.header("📚 Temario & Módulos Clínicos")
+elif menu == "📚 Temario, Algoritmos & Quiz":
+    st.header("📚 Temario Clínico, Algoritmos & Autoevaluación")
     
     tema_sel = st.selectbox(
         "Seleccioná el tema a estudiar:",
         [
-            "Preeclampsia y Síndromes Hipertensivos del Embarazo[cite: 1, 2]",
-            "IRAB: Bronquiolitis y Crisis Asmática Pediátrica[cite: 2]",
-            "Trauma Torácico y Protocolo ATLS[cite: 2]",
-            "Dengue y Arbovirosis Urbanas[cite: 2]",
-            "Leyes Sanitarias de Argentina (26.529 / 26.657 / 27.610)[cite: 2]"
+            "Preeclampsia y Trastornos Hipertensivos",
+            "IRAB Bronquiolitis y Vías Respiratorias Pediátricas",
+            "Trauma Torácico y Protocolo ATLS",
+            "Dengue y Arbovirosis Urbanas",
+            "Leyes Sanitarias de Argentina (26.529 / 26.657 / 27.610)"
         ]
     )
 
-    t1, t2, t3, t4 = st.tabs(["📄 Resumen & Drive", "🧠 Diagrama / Algoritmo", "⚡ High-Yield Pearls", "⚖️ Comparativa AR vs BR"])
+    t1, t2, t3, t4 = st.tabs(["🧠 Resumen & Algoritmo", "⚡ High-Yield Pearls", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
 
     with t1:
-        st.subheader("Material de Estudio")
-        st.link_button("🔗 Abrir Carpeta de Resúmenes en Google Drive", "https://drive.google.com")
-        st.info("Podés incrustar notas rápidas o resúmenes teóricos personales para este módulo.")
-
-    with t2:
-        st.subheader("Algoritmo Diagnóstico / Terapéutico")
+        st.subheader("Algoritmo Clínico")
         if "Preeclampsia" in tema_sel:
             st.markdown("""
             ```mermaid
@@ -306,58 +295,153 @@ elif menu == "📚 Temario & Algoritmos":
                 C --> G[Planificar Finalización según Edad Gestacional]
             ```
             """, unsafe_allow_html=True)
-            st.caption("Diagrama renderizado con lógica clínica estandarizada.")
-        elif "Trauma" in tema_sel:
-            st.markdown("""
-            ```mermaid
-            graph TD
-                A[Trauma Torácico con Shock / Disnea] --> B{Clínica: Hipotensión + Yugulares Ingurgitadas + Timpanismo + Tráquea Desviada}
-                B -- SÍ --> C[NEUMOTÓRAX A TENSIÓN]
-                C --> D[Descompresión Inmediata con Aguja en 4°/5° EIC Línea Axilar Anterior]
-                D --> E[Colocación de Tubo de Drenaje Pleural bajo Sello de Agua]
-                B -- NO --> F[Evaluar Hemotórax / Taponamiento / FAST]
-            ```
-            """, unsafe_allow_html=True)
+            
+        if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
+            if model:
+                with st.spinner("Diseñando diagrama de flujo clínico..."):
+                    prompt = f"Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}. Devolvé únicamente el bloque de código Mermaid."
+                    res = model.generate_content(prompt)
+                    st.code(res.text, language="mermaid")
+            else:
+                st.error("API de Gemini no configurada.")
+
+    with t2:
+        st.subheader("⚡ High-Yield Pearls")
+        st.write("• **Preeclampsia Severa:** PA $\\ge 160/110\\text{ mmHg}$. Primera línea: Labetalol EV o Hidralazina EV.")
+        st.write("• **Prevención de Convulsiones:** Sulfato de Magnesio EV (Esquema Zuspan o Sibai).")
+        st.write("• **Antídoto Magnesio:** Gluconato de Calcio al 10% EV.")
 
     with t3:
-        st.subheader("⚡ High-Yield Pearls (Reglas de Fija Memoria)")
-        if "Preeclampsia" in tema_sel:
-            st.write("• **Crisis Hipertensiva:** Se define con cifras $\\ge 160/110\\text{ mmHg}$[cite: 2]. Fármacos de primera línea: Labetalol EV o Hidralazina EV[cite: 2].")
-            st.write("• **Profilaxis de Eclampsia:** Sulfato de Magnesio endovenoso obligatorio (Esquema Zuspan o Sibai)[cite: 2].")
-            st.write("• **Intoxicación por Magnesio:** Antídoto de rescate: Gluconato de Calcio al $10\\%$ EV.")
-        elif "Trauma" in tema_sel:
-            st.write("• **Neumotórax a Tensión:** Diagnóstico estrictamente clínico. Nunca retrasar la descompresión para pedir radiografía de tórax[cite: 2].")
-            st.write("• **Tríada de Beck (Taponamiento Cardíaco):** Hipotensión arterial + Ruidos cardíacos apagados + Ingurgitación yugular[cite: 2].")
+        st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
+        st.write("• **Argentina:** Inicio de PAP a los 25 años (FASGO 2024); Vacuna VSR obligatoria en semanas 32-36.")
+        st.write("• **Brasil:** Tamizaje cervical con rastreo molecular DNA-HPV según directrices del Ministerio de Salud.")
 
     with t4:
-        st.subheader("⚖️ Diferencias Clave: Argentina vs. Brasil")
-        comp_df = pd.DataFrame([
-            {"Aspecto": "Tamizaje Cérvix", "🇦🇷 Argentina": "Papanicolaou a partir de los 25 años (FASGO 2024)[cite: 2]", "🇧🇷 Brasil": "Rastreo molecular DNA-HPV según directrices MS[cite: 2]"},
-            {"Aspecto": "Vacunación VSR", "🇦🇷 Argentina": "Obligatoria en embarazadas semanas 32 a 36[cite: 2]", "🇧🇷 Brasil": "No incorporada universalmente al PNI gestacional"},
-            {"Aspecto": "Leyes Sanitarias", "🇦🇷 Argentina": "Ley 26.529 (Derechos) y Ley 27.610 (IVE/ILE)[cite: 2]", "🇧🇷 Brasil": "Leyes 8.080 y 8.142 del SUS[cite: 2]"}
-        ])
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        st.subheader("🎯 Quiz Rápido de Comprobación (Solo este tema)")
+        filtro_palabra = "Preeclampsia" if "Preeclampsia" in tema_sel else ("IRAB" if "IRAB" in tema_sel else "Trauma")
+        conn = get_db_connection()
+        quiz_q = pd.read_sql("SELECT * FROM choices WHERE tema LIKE ? LIMIT 5", conn, params=(f"%{filtro_palabra}%",))
+        conn.close()
+
+        if len(quiz_q) == 0:
+            st.info("No hay choices cargados en la base de datos para este tema específico. ¡Podés crearlos con la pestaña 'Generador de Choices con IA'!")
+        else:
+            for idx, q_row in quiz_q.iterrows():
+                st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
+                ans = st.radio(
+                    f"Opciones para P{idx+1}:",
+                    [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
+                    key=f"quiz_tema_{q_row['id']}"
+                )
+                if st.button(f"Comprobar P{idx+1}", key=f"btn_q_{q_row['id']}"):
+                    if ans[0] == q_row['correcta']:
+                        st.success(f"¡Correcto! Opción {q_row['correcta']}")
+                    else:
+                        st.error(f"Incorrecto. La respuesta correcta es la opción {q_row['correcta']}.")
+                    st.info(q_row['justificacion'])
+                st.markdown("---")
 
 # -------------------------------------------------------------
-# 4. MOTOR DE CHOICES & SIMULACROS
+# 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (GEMINI)
+# -------------------------------------------------------------
+elif menu == "✨ Generador de Choices con IA":
+    st.header("✨ Generador Automático de Choices Médicos con IA")
+    st.caption("Creá preguntas inéditas basadas en casos clínicos reales ajustadas a los programas de Argentina y Brasil.")
+
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        tema_ia = st.text_input("Tema a evaluar:", value="Preeclampsia Severa y Manejo de Crisis")
+        area_ia = st.selectbox("Especialidad:", ["Tocoginecología", "Pediatría", "Clínica Médica", "Cirugía General", "Salud Pública y Leyes"])
+    with col_g2:
+        enfoque_ia = st.selectbox("Estilo de Examen:", ["🇦🇷 Examen Único / CABA (Argentina)", "🇧🇷 Revalida INEP (Brasil)"])
+        cant_q = st.slider("Cantidad de preguntas a generar:", 1, 5, 3)
+
+    if st.button("🚀 Generar y Guardar Choices con IA"):
+        if not model:
+            st.error("Error al conectar con la API de Gemini.")
+        else:
+            with st.spinner("La IA está redactando casos clínicos con distractores y justificación médica..."):
+                prompt = f"""
+                Actuá como miembro del comité evaluador médico de residencias médicas ({enfoque_ia}).
+                Generá {cant_q} preguntas de opción múltiple de alta calidad médica sobre: '{tema_ia}' en el área de '{area_ia}'.
+                
+                Devolvé ÚNICAMENTE un arreglo JSON válido (sin bloques de markdown adicionales) con este formato exacto:
+                [
+                  {{
+                    "pregunta": "Caso clínico detallado...",
+                    "opcion_a": "Texto opción A",
+                    "opcion_b": "Texto opción B",
+                    "opcion_c": "Texto opción C",
+                    "opcion_d": "Texto opción D",
+                    "correcta": "A", 
+                    "justificacion": "Explicación médica detallada citando guías vigentes."
+                  }}
+                ]
+                """
+                try:
+                    response = model.generate_content(prompt)
+                    clean_json = response.text.replace("```json", "").replace("```", "").strip()
+                    generated_list = json.loads(clean_json)
+
+                    conn = get_db_connection()
+                    c = conn.cursor()
+                    guardados = 0
+                    for item in generated_list:
+                        new_id = f"IA-{random.randint(10000, 99999)}"
+                        c.execute('''
+                            INSERT INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            new_id, f"✨ IA Generada ({enfoque_ia[:8]})", area_ia, tema_ia, "Prioridad A",
+                            item["pregunta"], item["opcion_a"], item["opcion_b"], item["opcion_c"], item["opcion_d"],
+                            item["correcta"].upper(), item["justificacion"], "https://drive.google.com",
+                            str(datetime.now().date()), 1, 2.5, 0
+                        ))
+                        guardados += 1
+                    conn.commit()
+                    conn.close()
+
+                    st.success(f"🎉 ¡Se generaron y guardaron {guardados} choices exitosamente en tu banco de preguntas!")
+                    for item in generated_list:
+                        with st.expander(f"Caso Clínico Generado: {item['pregunta'][:80]}..."):
+                            st.write(item['pregunta'])
+                            st.write(f"A) {item['opcion_a']}")
+                            st.write(f"B) {item['opcion_b']}")
+                            st.write(f"C) {item['opcion_c']}")
+                            st.write(f"D) {item['opcion_d']}")
+                            st.success(f"Respuesta Correcta: {item['correcta']}")
+                            st.info(item['justificacion'])
+                except Exception as e:
+                    st.error(f"Error procesando la respuesta de la IA: {e}")
+
+# -------------------------------------------------------------
+# 5. BANCO DE CHOICES & SIMULACROS
 # -------------------------------------------------------------
 elif menu == "📝 Banco de Choices & Simulacros":
-    st.header("📝 Práctica Interactiva de Choices")
+    st.header("📝 Banco de Choices & Simulacros")
+
+    modo_practica = st.radio(
+        "Modalidad de Estudio:",
+        ["📚 Por Área Específica", "🎲 Simulacro Aleatorio (Cualquier Tema)"],
+        horizontal=True
+    )
 
     conn = get_db_connection()
-    query = "SELECT * FROM choices"
-    if filtro_pais == "🇦🇷 Solo Argentina":
-        query += " WHERE examen_origen LIKE '%🇦🇷%'"
-    elif filtro_pais == "🇧🇷 Solo Brasil":
-        query += " WHERE examen_origen LIKE '%🇧🇷%'"
-    choices_df = pd.read_sql(query, conn)
+    if modo_practica == "📚 Por Área Específica":
+        area_sel = st.selectbox("Seleccioná el Área Médica:", ["Tocoginecología", "Pediatría", "Clínica Médica", "Cirugía General", "Salud Pública y Leyes"])
+        choices_df = pd.read_sql("SELECT * FROM choices WHERE area = ?", conn, params=(area_sel,))
+    else:
+        choices_df = pd.read_sql("SELECT * FROM choices", conn)
+        choices_df = choices_df.sample(frac=1).reset_index(drop=True)
     conn.close()
 
     if len(choices_df) == 0:
-        st.warning("No hay preguntas disponibles con el filtro seleccionado.")
+        st.warning("No se encontraron preguntas para los filtros seleccionados.")
     else:
-        # Selector de pregunta
-        q_idx = st.selectbox("Seleccionar Pregunta", range(len(choices_df)), format_func=lambda x: f"Pregunta #{x+1}: {choices_df.iloc[x]['tema']} ({choices_df.iloc[x]['examen_origen']})")
+        q_idx = st.selectbox(
+            "Seleccionar Pregunta a Resolver:",
+            range(len(choices_df)),
+            format_func=lambda x: f"P#{x+1}: {choices_df.iloc[x]['tema']} ({choices_df.iloc[x]['examen_origen']})"
+        )
         q = choices_df.iloc[q_idx]
 
         st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}** - *{q['tema']}*")
@@ -370,19 +454,19 @@ elif menu == "📝 Banco de Choices & Simulacros":
             f"D) {q['opcion_d']}"
         ]
 
-        respuesta_usr = st.radio("Opciones:", opciones, key=f"q_{q['id']}")
-        flag_duda = st.checkbox("🏷️ Marcar con Banderita de Duda (Flag)", key=f"flag_{q['id']}")
+        resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
+        flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
 
-        if st.button("Confirmar Respuesta", key=f"btn_{q['id']}"):
-            letra_elegida = respuesta_usr[0]
+        if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
+            letra_elegida = resp_usr[0]
             es_correcta = 1 if letra_elegida == q['correcta'] else 0
 
             conn = get_db_connection()
             c = conn.cursor()
             c.execute('''
-                INSERT INTO error_log (choice_id, fecha, respuesta_dada, es_correcta, flag_duda, motivo_error, regla_oro)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (q['id'], datetime.now(), letra_elegida, es_correcta, 1 if flag_duda else 0, "", ""))
+                INSERT INTO error_log (username, choice_id, fecha, respuesta_dada, es_correcta, flag_duda, motivo_error, regla_oro)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (st.session_state.current_user, q['id'], datetime.now(), letra_elegida, es_correcta, 1 if flag_duda else 0, "", ""))
             conn.commit()
             conn.close()
 
@@ -393,25 +477,12 @@ elif menu == "📝 Banco de Choices & Simulacros":
 
             st.info(f"**Fundamento Clínico:** {q['justificacion']}")
 
-            # Botones de Repaso Espaciado
-            st.markdown("##### ¿Qué tan difícil te resultó esta pregunta?")
-            col_a, col_b, col_c = st.columns(3)
-            if col_a.button("🔴 Difícil (Repasar mañana)", key=f"d_{q['id']}"):
-                update_sm2(q['id'], "Difícil")
-                st.toast("Programada para repasar mañana.")
-            if col_b.button("🟡 Bien (Repasar en 3 días)", key=f"b_{q['id']}"):
-                update_sm2(q['id'], "Bien")
-                st.toast("Programada para repasar en 3 días.")
-            if col_c.button("🟢 Muy Fácil (Repasar en 7+ días)", key=f"e_{q['id']}"):
-                update_sm2(q['id'], "Muy Fácil")
-                st.toast("Programada para repasar en 7 días.")
-
 # -------------------------------------------------------------
-# 5. CUADERNO DE ERRORES (Metacognición)
+# 6. CUADERNO DE ERRORES DEL USUARIO
 # -------------------------------------------------------------
 elif menu == "📕 Cuaderno de Errores":
-    st.header("📕 Libro de Errores & Dudas (Cuaderno Blanco)")
-    st.caption("Analizá tus fallas para evitar cometer el mismo error en el examen real[cite: 2].")
+    st.header(f"📕 Libro de Errores | {st.session_state.user_name}")
+    st.caption("Solo se muestran las preguntas falladas o marcadas con duda en tu cuenta.")
 
     conn = get_db_connection()
     errores_df = pd.read_sql('''
@@ -419,215 +490,97 @@ elif menu == "📕 Cuaderno de Errores":
                c.pregunta, c.correcta, c.justificacion, c.area, c.tema, c.examen_origen
         FROM error_log e
         JOIN choices c ON e.choice_id = c.id
-        WHERE e.es_correcta = 0 OR e.flag_duda = 1
+        WHERE e.username = ? AND (e.es_correcta = 0 OR e.flag_duda = 1)
         ORDER BY e.fecha DESC
-    ''', conn)
+    ''', conn, params=(st.session_state.current_user,))
     conn.close()
 
     if len(errores_df) == 0:
-        st.success("✨ ¡No tenés errores ni dudas registradas actualmente!")
+        st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
     else:
-        st.info(f"Registros encontrados: **{len(errores_df)} preguntas** para análisis.")
+        st.info(f"Tenés **{len(errores_df)} preguntas registradas** para análisis.")
         for idx, row in errores_df.iterrows():
-            with st.expander(f"❌ {row['area']} - {row['tema']} ({row['examen_origen']}) | Respondido: {row['respuesta_dada']} | Correcto: {row['correcta']}"):
-                st.write(f"**Pregunta:** {row['pregunta']}")
-                st.write(f"**Justificación Oficial:** {row['justificacion']}")
+            with st.expander(f"❌ {row['area']} | {row['tema']} ({row['examen_origen']}) | Marcaste: {row['respuesta_dada']} | Correcta: {row['correcta']}"):
+                st.write(f"**Enunciado:** {row['pregunta']}")
+                st.write(f"**Justificación:** {row['justificacion']}")
                 
-                # Diagnóstico metacognitivo
                 motivo = st.selectbox(
-                    "¿Cuál fue la causa de este error?",
-                    ["Error de lectura / Apuro", "Duda 50/50 y elegí mal", "Falta de teoría / Concepto no estudiado", "Confusión de dosis o algoritmo"],
-                    key=f"motivo_{row['log_id']}"
+                    "¿Por qué fallaste?",
+                    ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis"],
+                    key=f"mot_{row['log_id']}"
                 )
-                regla = st.text_input("💡 Regla de Oro para no fallar la próxima:", value=row['regla_oro'] if row['regla_oro'] else "", key=f"regla_{row['log_id']}")
+                regla = st.text_input("💡 Tu regla para evitarlo la próxima:", value=row['regla_oro'] if row['regla_oro'] else "", key=f"reg_{row['log_id']}")
                 
-                if st.button("Guardar Análisis", key=f"save_err_{row['log_id']}"):
+                if st.button("Guardar en mi Bitácora", key=f"save_b_{row['log_id']}"):
                     conn = get_db_connection()
                     c = conn.cursor()
                     c.execute("UPDATE error_log SET motivo_error = ?, regla_oro = ? WHERE id = ?", (motivo, regla, row['log_id']))
                     conn.commit()
                     conn.close()
-                    st.success("¡Análisis guardado exitosamente!")
+                    st.success("Guardado en tu perfil.")
 
 # -------------------------------------------------------------
-# 6. GUÍA COMPARATIVA AR VS BR
+# 7. GUÍA COMPARATIVA AR VS BR
 # -------------------------------------------------------------
 elif menu == "⚖️ Guía Comparativa AR vs BR":
     st.header("⚖️ Matriz Comparativa Oficial: Argentina vs. Brasil")
-    st.caption("Diferencias directas en normas del Ministerio de Salud / SUS[cite: 2].")
+    st.caption("Diferencias normativas del Ministerio de Salud y del SUS.")
 
     comparativas = [
-        {"Área": "Ginecología", "Tema": "Inicio de Citología (PAP)", "🇦🇷 Argentina": "A partir de los 25 años (FASGO 2024)[cite: 2]", "🇧🇷 Brasil": "A partir de los 25 años / Foco en prueba molecular DNA-HPV[cite: 2]"},
-        {"Área": "Obstetricia", "Tema": "Vacuna Virus Sincicial (VSR)", "🇦🇷 Argentina": "Obligatoria en gestantes sem 32 a 36[cite: 2]", "🇧🇷 Brasil": "No incorporada de forma rutinaria al PNI gestacional"},
-        {"Área": "Salud Pública", "Tema": "Marco Legal de Salud Mental", "🇦🇷 Argentina": "Ley 26.657: Internación involuntaria solo por 'riesgo cierto e inminente'[cite: 2]", "🇧🇷 Brasil": "Ley 10.216: Reforma Psiquiátrica y RAPS (Rede de Atenção Psicossocial)"},
-        {"Área": "Salud Pública", "Tema": "Leyes Orgánicas Sanitarias", "🇦🇷 Argentina": "Ley 26.529 (Derechos del Paciente) + Ley 27.610 (IVE/ILE)[cite: 2]", "🇧🇷 Brasil": "Leyes 8.080 (SUS) y 8.142 (Participación Comunitaria)[cite: 2]"},
-        {"Área": "Infectología", "Tema": "Tuberculosis de Primera Línea", "🇦🇷 Argentina": "Pautas Técnicas 2026: GeneXpert MTB/RIF + RIPE[cite: 2]", "🇧🇷 Brasil": "TRM-TB (Teste Rápido Molecular) + RHZE (Rifampicina, Isoniazida, Pirazinamida, Etambutol)"}
+        {"Área": "Ginecología", "Tema": "Inicio de Citología (PAP)", "🇦🇷 Argentina": "A partir de los 25 años (FASGO 2024)", "🇧🇷 Brasil": "A partir de los 25 años / Foco en prueba molecular DNA-HPV"},
+        {"Área": "Obstetricia", "Tema": "Vacuna Virus Sincicial (VSR)", "🇦🇷 Argentina": "Obligatoria en gestantes sem 32 a 36", "🇧🇷 Brasil": "No incorporada universalmente al PNI gestacional"},
+        {"Área": "Salud Pública", "Tema": "Marco Legal de Salud Mental", "🇦🇷 Argentina": "Ley 26.657: Internación involuntaria solo por 'riesgo cierto e inminente'", "🇧🇷 Brasil": "Ley 10.216: Reforma Psiquiátrica y RAPS"},
+        {"Área": "Salud Pública", "Tema": "Leyes Orgánicas Sanitarias", "🇦🇷 Argentina": "Ley 26.529 (Derechos) + Ley 27.610 (IVE/ILE)", "🇧🇷 Brasil": "Leyes 8.080 (SUS) y 8.142 (Participación Comunitaria)"},
+        {"Área": "Infectología", "Tema": "Tuberculosis de Primera Línea", "🇦🇷 Argentina": "Pautas Técnicas: GeneXpert MTB/RIF + RIPE", "🇧🇷 Brasil": "TRM-TB (Teste Rápido Molecular) + RHZE"}
     ]
     st.dataframe(pd.DataFrame(comparativas), use_container_width=True, hide_index=True)
 
 # -------------------------------------------------------------
-# 7. MÉTRICAS & RENDIMIENTO
+# 8. ESTADÍSTICAS DEL USUARIO
 # -------------------------------------------------------------
-elif menu == "📊 Métricas & Rendimiento":
-    st.header("📊 Analítica y Rendimiento Clínico")
+elif menu == "📊 Estadísticas de Rendimiento":
+    st.header(f"📊 Estadísticas Personales | {st.session_state.user_name}")
 
     conn = get_db_connection()
     metrics_df = pd.read_sql('''
         SELECT c.area, c.examen_origen, e.es_correcta
         FROM error_log e
         JOIN choices c ON e.choice_id = c.id
-    ''', conn)
+        WHERE e.username = ?
+    ''', conn, params=(st.session_state.current_user,))
     conn.close()
 
     if len(metrics_df) == 0:
-        st.info("Aún no hay respuestas registradas para generar gráficos.")
+        st.info("Aún no tenés suficientes preguntas resueltas para generar gráficos.")
     else:
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Rendimiento por Especialidad")
             area_stats = metrics_df.groupby("area")["es_correcta"].agg(Total="count", Aciertos="sum").reset_index()
-            area_stats["Porcentaje_Acierto"] = (area_stats["Aciertos"] / area_stats["Total"]) * 100
-            fig_bar = px.bar(area_stats, x="area", y="Porcentaje_Acierto", text_auto=".1f", color="Porcentaje_Acierto", color_continuous_scale="Viridis", labels={"Porcentaje_Acierto": "% de Acierto", "area": "Especialidad"})
-            st.plotly_chart(fig_bar, use_container_width=True)
-
+            area_stats["Porcentaje"] = (area_stats["Aciertos"] / area_stats["Total"]) * 100
+            fig = px.bar(area_stats, x="area", y="Porcentaje", text_auto=".1f", color="Porcentaje", color_continuous_scale="Teal", labels={"Porcentaje": "% Acierto", "area": "Especialidad"})
+            st.plotly_chart(fig, use_container_width=True)
         with c2:
-            st.subheader("Distribución Global de Respuestas")
-            aciertos_total = metrics_df["es_correcta"].sum()
-            errores_total = len(metrics_df) - aciertos_total
-            fig_pie = px.pie(values=[aciertos_total, errores_total], names=["Aciertos", "Errores"], color_discrete_sequence=["#2ca02c", "#d62728"])
-            st.plotly_chart(fig_pie, use_container_width=True)
+            st.subheader("Proporción Global de Aciertos")
+            fig_p = px.pie(values=[metrics_df['es_correcta'].sum(), len(metrics_df)-metrics_df['es_correcta'].sum()], names=["Aciertos", "Errores"], color_discrete_sequence=["#2ecc71", "#e74c3c"])
+            st.plotly_chart(fig_p, use_container_width=True)
 
 # -------------------------------------------------------------
-# 8. IMPORTADOR MASIVO (Extractor Flexible de PDFs y Grillas)
+# 9. CARGA DE EXÁMENES CSV
 # -------------------------------------------------------------
-elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
-    st.header("⚙️ Importación Masiva de Exámenes")
-    st.caption("Subí el cuadernillo de preguntas y pegá las respuestas de la grilla oficial[cite: 3, 6, 9].")
+elif menu == "⚙️ Cargar CSV / Exámenes":
+    st.header("⚙️ Importar Lotes de Preguntas CSV")
+    st.caption("Subí tu archivo de preguntas generado.")
 
-    tab_dual, tab_csv = st.tabs(["📄 Cuadernillo + Grilla Oficial", "📊 Cargar CSV / Excel"])
-
-    with tab_dual:
-        col_c1, col_c2 = st.columns(2)
-        with col_c1:
-            pdf_preguntas = st.file_uploader("1. Subir PDF del Cuadernillo (Preguntas)", type=["pdf"], key="cuadernillo")
-            nombre_examen = st.text_input("Etiqueta del Examen:", value="🇦🇷 Examen Único")
-        with col_c2:
-            grilla_input_type = st.radio("2. Formato de la Grilla de Respuestas:", ["Texto / Pegar Grilla", "PDF de Grilla"])
-            grilla_texto = ""
-            if grilla_input_type == "Texto / Pegar Grilla":
-                grilla_texto = st.text_area("Pegá acá la grilla (ej: 1 B 2 C 3 A... o 1-B, 2-C o tabla de respuestas)[cite: 5, 6, 10]:", height=150)
-            else:
-                pdf_grilla = st.file_uploader("Subir PDF de la Grilla", type=["pdf"], key="grilla_pdf")
-
-        if st.button("🚀 Procesar, Cruzar y Guardar Preguntas"):
-            if not pdf_preguntas:
-                st.error("Por favor subí primero el PDF del cuadernillo.")
-            else:
-                # 1. Extracción de Grilla de Respuestas (Regex súper flexible)
-                respuestas_dict = {}
-                texto_grilla_completo = grilla_texto
-                if grilla_input_type == "PDF de Grilla" and pdf_grilla:
-                    reader_g = PdfReader(pdf_grilla)
-                    texto_grilla_completo = "\n".join([p.extract_text() for p in reader_g.pages if p.extract_text()])
-
-                if texto_grilla_completo:
-                    # Captura formatos como '1 B', '1. B', '1) B', '1-B', '1:B' o tablas de dos columnas[cite: 5, 6, 10]
-                    pares = re.findall(r'(\d{1,3})\s*[\.\-\:\)\s\t]+([a-dA-D])(?![a-zA-Z])', texto_grilla_completo)
-                    for num, letra in pares:
-                        respuestas_dict[int(num)] = letra.upper()
-
-                # 2. Extracción de Texto del Cuadernillo
-                reader_p = PdfReader(pdf_preguntas)
-                raw_text = ""
-                for page in reader_p.pages:
-                    t = page.extract_text()
-                    if t:
-                        raw_text += "\n" + t
-
-                # Limpieza de saltos de línea artificiales y normalización
-                clean_text = re.sub(r'Examen\s+Único\s+\d{4}', '', raw_text, flags=re.IGNORECASE)
-                clean_text = re.sub(r'Página\s+\d+\s+de\s+\d+', '', clean_text, flags=re.IGNORECASE)
-
-                # Segmentador flexible: divide el PDF por números de pregunta '1)', '1.', '1 -'[cite: 3, 5, 11]
-                question_blocks = re.split(r'\n(?=\s*\d{1,3}[\.\)\-]\s+)', clean_text)
-                
-                guardadas = 0
-                conn = get_db_connection()
-                c = conn.cursor()
-
-                for block in question_blocks:
-                    # Verificar si el bloque arranca con un número de pregunta
-                    match_num = re.match(r'^\s*(\d{1,3})[\.\)\-]\s+(.*)', block, re.DOTALL)
-                    if not match_num:
-                        continue
-                    
-                    num_int = int(match_num.group(1))
-                    contenido = match_num.group(2)
-
-                    # Buscar las 4 opciones A, B, C, D dentro del bloque[cite: 3, 10, 11]
-                    partes_opciones = re.split(r'\n?\s*[\(\[]?([a-dA-D])[\)\]\.\-]\s+', contenido)
-                    
-                    if len(partes_opciones) >= 9:
-                        # Estructura: [enunciado, 'a', texto_a, 'b', texto_b, 'c', texto_c, 'd', texto_d]
-                        enunciado = partes_opciones[0].strip().replace('\n', ' ')
-                        op_dict = {}
-                        for i in range(1, len(partes_opciones), 2):
-                            letra = partes_opciones[i].upper()
-                            texto_op = partes_opciones[i+1].strip().replace('\n', ' ')
-                            op_dict[letra] = texto_op
-
-                        op_a = op_dict.get('A', '')
-                        op_b = op_dict.get('B', '')
-                        op_c = op_dict.get('C', '')
-                        op_d = op_dict.get('D', '')
-
-                        if op_a and op_b:
-                            correcta_oficial = respuestas_dict.get(num_int, "A")
-                            
-                            # Clasificación temática automática
-                            p_low = (enunciado + " " + op_a).lower()
-                            area = "Clínica Médica"
-                            tema = "Módulo General"
-                            if any(k in p_low for k in ["embaraz", "gestant", "parto", "preeclampsia", "uterin", "ive", "ile", "cérvix", "pap"]):
-                                area = "Tocoginecología"
-                                tema = "Obstetricia y Ginecología"
-                            elif any(k in p_low for k in ["lactante", "niño", "pediat", "bronquiolitis", "vacuna", "deshidratación", "puericultura"]):
-                                area = "Pediatría"
-                                tema = "Pediatría y Puericultura"
-                            elif any(k in p_low for k in ["trauma", "neumotórax", "apendicitis", "colecistitis", "hernia", "quirúrg", "atls"]):
-                                area = "Cirugía General"
-                                tema = "Cirugía y Trauma"
-                            elif any(k in p_low for k in ["ley ", "derechos del paciente", "salud mental", "bioética", "epidemiolog"]):
-                                area = "Salud Pública y Leyes"
-                                tema = "Marco Legal y Bioética"
-
-                            q_id = f"{nombre_examen[:6]}-{num_int}"
-                            c.execute('''
-                                INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ''', (
-                                q_id, nombre_examen, area, tema, "Prioridad A",
-                                enunciado, op_a, op_b, op_c, op_d,
-                                correcta_oficial, "Respuesta oficial según grilla del examen[cite: 6, 10].",
-                                "https://drive.google.com", str(datetime.now().date()), 1, 2.5, 0
-                            ))
-                            guardadas += 1
-
-                conn.commit()
-                conn.close()
-
-                if guardadas > 0:
-                    st.success(f"🎉 ¡Éxito total! Se extrajeron {guardadas} preguntas completas y se vincularon con {len(respuestas_dict)} respuestas oficiales.")
-                else:
-                    st.warning("No se detectaron preguntas con el formato estándar. Si tu PDF es una imagen escaneada sin texto seleccionable, cargalo a través de la pestaña 'Cargar CSV / Excel'.")
-
-    with tab_csv:
-        st.subheader("Carga vía Planilla CSV")
-        up_csv = st.file_uploader("Subir CSV", type=["csv"])
-        if up_csv and st.button("Importar CSV"):
-            df = pd.read_csv(up_csv)
+    uploaded_csv = st.file_uploader("Subir archivo CSV", type=["csv"])
+    if uploaded_csv is not None:
+        df_up = pd.read_csv(uploaded_csv)
+        st.write("Vista previa:")
+        st.dataframe(df_up.head(3))
+        if st.button("Guardar en la Base de Datos"):
             conn = get_db_connection()
             c = conn.cursor()
-            for _, r in df.iterrows():
+            for _, r in df_up.iterrows():
                 c.execute('''
                     INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
@@ -638,4 +591,4 @@ elif menu == "⚙️ Importar Exámenes (PDF / CSV)":
                 ))
             conn.commit()
             conn.close()
-            st.success(f"Se cargaron {len(df)} preguntas del archivo.")
+            st.success(f"¡Se importaron {len(df_up)} preguntas exitosamente!")
