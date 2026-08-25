@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# CONFIGURACIÓN ROBUSTA DE GEMINI API
+# CONFIGURACIÓN DE GEMINI API (v2.5)
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
@@ -27,20 +27,9 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Intentar obtener el primer modelo disponible compatible con generateContent
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        
-        # Priorizar gemini-1.5-flash o gemini-pro según disponibilidad
-        chosen_model = next((m for m in available_models if "flash" in m), None)
-        if not chosen_model:
-            chosen_model = next((m for m in available_models if "gemini-pro" in m), "gemini-pro")
-            
-        model = genai.GenerativeModel(chosen_model)
-    except Exception:
-        try:
-            model = genai.GenerativeModel("gemini-pro")
-        except Exception:
-            model = None
+        model = genai.GenerativeModel("gemini-2.5-flash")
+    except Exception as e:
+        model = None
 
 # -------------------------------------------------------------
 # BASE DE DATOS LOCAL (SQLite Persistente)
