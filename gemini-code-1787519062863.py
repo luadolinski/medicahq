@@ -395,59 +395,51 @@ elif menu == "📅 Cronograma Semanal Detallado":
     st.dataframe(df_sem, use_container_width=True, hide_index=True)
     
 # -------------------------------------------------------------
-# 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
+# 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO (Vinculado al Cronograma)
 # -------------------------------------------------------------
 elif menu == "📚 Temario, Algoritmos & Quiz":
     st.header("📚 Temario Clínico, Algoritmos & Autoevaluación")
-    
-    tema_sel = st.selectbox(
-        "Seleccioná el tema a estudiar:",
-        [
-            "Preeclampsia y Trastornos Hipertensivos",
-            "IRAB Bronquiolitis y Vías Respiratorias Pediátricas",
-            "Trauma Torácico y Protocolo ATLS",
-            "Dengue y Arbovirosis Urbanas",
-            "Leyes Sanitarias de Argentina (26.529 / 26.657 / 27.610)"
-        ]
-    )
+    st.caption("Seleccioná la semana y el tema específico del cronograma para estudiar o autoevaluarte.")
 
-    t1, t2, t3, t4 = st.tabs(["🧠 Resumen & Algoritmo", "⚡ High-Yield Pearls", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
+    # 1. Selector sincronizado con el cronograma completo
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        semana_estudio = st.selectbox("1. Elegí la Semana de Estudio:", list(cronograma_desglosado.keys()))
+    
+    # Extraer los temas de esa semana
+    temas_de_la_semana = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_estudio]]
+    
+    with col_t2:
+        tema_dia_sel = st.selectbox("2. Elegí el Tema del Día:", temas_de_la_semana)
+
+    # Limpiar el nombre del tema para búsquedas e IA
+    tema_limpio = tema_dia_sel.split(":", 1)[1].strip() if ":" in tema_dia_sel else tema_dia_sel
+
+    st.markdown(f"### 🎯 Estudiando: *{tema_limpio[:70]}...*")
+
+    t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
 
     with t1:
-        st.subheader("Algoritmo Clínico")
-        if "Preeclampsia" in tema_sel:
-            st.markdown("""
-            ```mermaid
-            graph TD
-                A[Gestante >= 20 sem con PA >= 140/90] --> B{Criterios de Severidad?<br>PA >= 160/110, Cefalea, Epigastralgia, Plaquetas < 100k}
-                B -- SÍ --> C[Preeclampsia Severa]
-                B -- NO --> D[Preeclampsia sin Severidad]
-                C --> E[1° Labetalol 20mg EV o Hidralazina 5mg EV]
-                C --> F[2° Sulfato de Magnesio: Ataque 4-5g EV + Mant 1-2g/h]
-                C --> G[Planificar Finalización según Edad Gestacional]
-            ```
-            """, unsafe_allow_html=True)
-            
-        if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
+        st.subheader("Algoritmo Clínico Interactivo")
+        
+        if st.button("✨ Generar Algoritmo con IA para este tema", key="btn_algo_dinamico"):
             if not model:
-                st.error("Error: Verificá que tu API Key de Gemini esté configurada correctamente en Secrets.")
+                st.error("Error: Verificá que tu API Key de Gemini esté en Secrets.")
             else:
-                with st.spinner("Diseñando diagrama de flujo clínico..."):
+                with st.spinner(f"Diseñando diagrama de flujo para: {tema_limpio[:50]}..."):
                     prompt = f"""
-                    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}.
+                    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema_limpio}.
                     
-                    REGLAS DE SINTAXIS ESTRICTAS PARA MERMAID:
+                    REGLAS DE SINTAXIS ESTRICTAS:
                     1. Empezá con 'graph TD'.
-                    2. TODO el texto dentro de nodos con corchetes o llaves DEBE ir entre comillas dobles, por ejemplo: A["Texto con (paréntesis)"] o B{{"Decisión >= 160/110"}}.
+                    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
                     3. Cada conexión DEBE estar en una línea separada.
-                    4. NO uses caracteres como '(', ')', '/', '>', '<' fuera de comillas dobles.
-                    5. Devolvé ÚNICAMENTE el bloque de código Mermaid, sin texto previo ni posterior.
+                    4. NO uses caracteres especiales sin comillas.
+                    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
                     """
                     try:
                         res = model.generate_content(prompt)
                         mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
-                        
-                        # Limpieza de seguridad: asegurar saltos de línea entre nodos pegados
                         mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
                         mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
 
@@ -456,43 +448,63 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                         {mermaid_clean}
                         ```
                         """)
-                        st.caption("Diagrama clínico generado por IA.")
                     except Exception as err:
-                        st.error(f"Ocurrió un error al contactar a la IA: {err}")
+                        st.error(f"Error generando algoritmo: {err}")
 
     with t2:
-        st.subheader("⚡ High-Yield Pearls")
-        st.write("• **Preeclampsia Severa:** PA $\\ge 160/110\\text{ mmHg}$. Primera línea: Labetalol EV o Hidralazina EV.")
-        st.write("• **Prevención de Convulsiones:** Sulfato de Magnesio EV (Esquema Zuspan o Sibai).")
-        st.write("• **Antídoto Magnesio:** Gluconato de Calcio al 10% EV.")
+        st.subheader("⚡ Resumen High-Yield & Perlas Clave")
+        if st.button("✨ Generar Puntos Clave de Examen con IA", key="btn_pearls"):
+            if not model:
+                st.error("API de Gemini no configurada.")
+            else:
+                with st.spinner("Extrayendo conceptos más tomados..."):
+                    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema_limpio}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
+                    try:
+                        p_res = model.generate_content(p_prompt)
+                        st.markdown(p_res.text)
+                    except Exception as err:
+                        st.error(f"Error: {err}")
 
     with t3:
         st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
-        st.write("• **Argentina:** Inicio de PAP a los 25 años (FASGO 2024); Vacuna VSR obligatoria en semanas 32-36.")
-        st.write("• **Brasil:** Tamizaje cervical con rastreo molecular DNA-HPV según directrices del Ministerio de Salud.")
+        if st.button("✨ Comparar Enfoque AR vs BR con IA", key="btn_comp"):
+            if not model:
+                st.error("API de Gemini no configurada.")
+            else:
+                with st.spinner("Comparando protocolos sanitarios..."):
+                    c_prompt = f"Explicá brevemente las diferencias clave de protocolo o guías clínicas entre Argentina y Brasil para '{tema_limpio}'. Si son idénticos, indicalo."
+                    try:
+                        c_res = model.generate_content(c_prompt)
+                        st.markdown(c_res.text)
+                    except Exception as err:
+                        st.error(f"Error: {err}")
 
     with t4:
-        st.subheader("🎯 Quiz Rápido de Comprobación (Solo este tema)")
-        filtro_palabra = "Preeclampsia" if "Preeclampsia" in tema_sel else ("IRAB" if "IRAB" in tema_sel else "Trauma")
+        st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
+        
+        # Buscar en la base de datos por palabras clave del tema
+        palabras = [w for w in tema_limpio.split() if len(w) > 4][:2]
+        query_kw = f"%{palabras[0]}%" if palabras else "%"
+        
         conn = get_db_connection()
-        quiz_q = pd.read_sql("SELECT * FROM choices WHERE tema LIKE ? LIMIT 5", conn, params=(f"%{filtro_palabra}%",))
+        quiz_q = pd.read_sql("SELECT * FROM choices WHERE tema LIKE ? OR pregunta LIKE ? LIMIT 5", conn, params=(query_kw, query_kw))
         conn.close()
 
         if len(quiz_q) == 0:
-            st.info("No hay choices cargados en la base de datos para este tema específico. ¡Podés crearlos con la pestaña 'Generador de Choices con IA'!")
+            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar una batería de 5 a 20 preguntas en la solapa '✨ Generador de Choices con IA'.")
         else:
             for idx, q_row in quiz_q.iterrows():
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
                 ans = st.radio(
                     f"Opciones para P{idx+1}:",
                     [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
-                    key=f"quiz_tema_{q_row['id']}"
+                    key=f"quiz_din_{q_row['id']}"
                 )
-                if st.button(f"Comprobar P{idx+1}", key=f"btn_q_{q_row['id']}"):
+                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{q_row['id']}"):
                     if ans[0] == q_row['correcta']:
                         st.success(f"¡Correcto! Opción {q_row['correcta']}")
                     else:
-                        st.error(f"Incorrecto. La respuesta correcta es la opción {q_row['correcta']}.")
+                        st.error(f"Incorrecto. La respuesta oficial era la opción {q_row['correcta']}.")
                     st.info(q_row['justificacion'])
                 st.markdown("---")
 
