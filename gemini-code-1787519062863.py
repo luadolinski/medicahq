@@ -22,11 +22,18 @@ st.set_page_config(
 # CONFIGURACIÓN DE GEMINI API
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-try:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
-except Exception as e:
-    model = None
+
+model = None
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        # Probamos primero con el identificador estándar actual
+        model = genai.GenerativeModel("gemini-1.5-flash")
+    except Exception:
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        except Exception:
+            model = None
 
 # -------------------------------------------------------------
 # BASE DE DATOS LOCAL (SQLite Persistente)
@@ -421,14 +428,28 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             ```
             """, unsafe_allow_html=True)
             
-        if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
-            if model:
-                with st.spinner("Diseñando diagrama de flujo clínico..."):
-                    prompt = f"Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}. Devolvé únicamente el bloque de código Mermaid."
-                    res = model.generate_content(prompt)
-                    st.code(res.text, language="mermaid")
+       if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
+            if not model:
+                st.error("Error: Verificá que tu API Key de Gemini esté configurada correctamente en Secrets.")
             else:
-                st.error("API de Gemini no configurada.")
+                with st.spinner("Diseñando diagrama de flujo clínico..."):
+                    prompt = f"""
+                    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}.
+                    Reglas estrictas:
+                    1. Devolvé ÚNICAMENTE el bloque de código Mermaid que empiece con 'graph TD'.
+                    2. No agregues introducciones, conclusiones ni etiquetas de markdown adicionales.
+                    """
+                    try:
+                        res = model.generate_content(prompt)
+                        mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
+                        st.markdown(f"""
+                        ```mermaid
+                        {mermaid_code}
+                        ```
+                        """)
+                        st.caption("Diagrama clínico generado por IA.")
+                    except Exception as err:
+                        st.error(f"Ocurrió un error al contactar a la IA: {err}")
 
     with t2:
         st.subheader("⚡ High-Yield Pearls")
