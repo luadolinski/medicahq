@@ -431,19 +431,28 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             if not model:
                 st.error("Error: Verificá que tu API Key de Gemini esté configurada correctamente en Secrets.")
             else:
-                with st.spinner("Diseñando diagrama de flujo clínico con Gemini 3.6..."):
+                with st.spinner("Diseñando diagrama de flujo clínico..."):
                     prompt = f"""
                     Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}.
-                    Reglas estrictas:
-                    1. Devolvé ÚNICAMENTE el bloque de código Mermaid que empiece con 'graph TD'.
-                    2. No agregues introducciones, conclusiones ni etiquetas de markdown adicionales.
+                    
+                    REGLAS DE SINTAXIS ESTRICTAS PARA MERMAID:
+                    1. Empezá con 'graph TD'.
+                    2. TODO el texto dentro de nodos con corchetes o llaves DEBE ir entre comillas dobles, por ejemplo: A["Texto con (paréntesis)"] o B{{"Decisión >= 160/110"}}.
+                    3. Cada conexión DEBE estar en una línea separada.
+                    4. NO uses caracteres como '(', ')', '/', '>', '<' fuera de comillas dobles.
+                    5. Devolvé ÚNICAMENTE el bloque de código Mermaid, sin texto previo ni posterior.
                     """
                     try:
                         res = model.generate_content(prompt)
                         mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
+                        
+                        # Limpieza de seguridad: asegurar saltos de línea entre nodos pegados
+                        mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
+                        mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
+
                         st.markdown(f"""
                         ```mermaid
-                        {mermaid_code}
+                        {mermaid_clean}
                         ```
                         """)
                         st.caption("Diagrama clínico generado por IA.")
