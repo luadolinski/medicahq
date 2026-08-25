@@ -234,40 +234,159 @@ if menu == "🏠 Dashboard & Repaso SRS":
                     st.write(row['justificacion'])
 
 # -------------------------------------------------------------
-# 2. CRONOGRAMA SEMANAL DETALLADO
+# 2. CRONOGRAMA SEMANAL DETALLADO (SEMANAS 1 A 20)
 # -------------------------------------------------------------
 elif menu == "📅 Cronograma Semanal Detallado":
-    st.header("📅 Cronograma de Estudio Detallado (Día por Día)")
-    st.caption("Planificación estructurada de lunes a viernes (1 a 2 horas diarias) para compatibilizar trabajo y estudio.")
+    st.header("📅 Cronograma Completo y Exhaustivo (Semanas 1 a 20)")
+    st.caption("Planificación estructurada de 1 a 2 horas diarias de lunes a viernes para cubrir el 100% del temario oficial.")
 
     cronograma_desglosado = {
         "Semana 1 (Tocoginecología: Trastornos Hipertensivos)": [
-            {"Día": "Lunes", "Tema Específico": "Preeclampsia sin Criterios de Severidad: Diagnóstico y seguimiento ambulatorio.", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Martes", "Tema Específico": "Preeclampsia con Criterios de Severidad: Protocolo Labetalol/Hidralazina EV + Sulfato de Magnesio.", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Miércoles", "Tema Específico": "Eclampsia y Síndrome HELLP: Diagnóstico de laboratorio y manejo de urgencia obstétrica.", "Meta": "Algoritmo + 10 choices"},
-            {"Día": "Jueves", "Tema Específico": "Hipertensión Crónica y Preeclampsia Sobreimpuesta: Guías MSAL 2024 vs. APS Brasil.", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Viernes", "Tema Específico": "Repaso Integrador + Batería de choices de exámenes anteriores.", "Meta": "20 choices + Error Log"}
+            {"Día": "Lunes", "Tema Específico": "Preeclampsia sin Criterios de Severidad: Criterios diagnósticos, metas de TA, seguimiento ambulatorio y criterios de internación.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Preeclampsia con Criterios de Severidad: Criterios clínicos y de laboratorio. Protocolos de Labetalol / Hidralazina EV + Esquema de Sulfato de Magnesio (Zuspan/Sibai).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Eclampsia y Síndrome HELLP: Diagnóstico de laboratorio diferencial, complicaciones materno-fetales y manejo de urgencia en guardia.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Hipertensión Crónica y Preeclampsia Sobreimpuesta: Manejo farmacológico ambulatorio (Alfametildopa vs Labetalol) y Guías MSAL 2024 vs APS Brasil.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Repaso Integrador de Hipertensión en el Embarazo + Batería de 20 choices de exámenes oficiales.", "Meta": "20 choices + Error Log"}
         ],
         "Semana 2 (Tocoginecología: Hemorragias y Salud Sexual)": [
-            {"Día": "Lunes", "Tema Específico": "Hemorragias de la 1ª Mitad: Aborto y Embarazo Ectópico (Metotrexato vs. Quirúrgico).", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Martes", "Tema Específico": "Hemorragias de la 2ª Mitad: DPPNI vs. Placenta Previa vs. Rotura Uterina.", "Meta": "Cuadro diferencial + 10 choices"},
-            {"Día": "Miércoles", "Tema Específico": "Interrupción Voluntaria del Embarazo: Ley 27.610 (IVE/ILE) y Misoprostol.", "Meta": "Lectura Ley + 10 choices"},
-            {"Día": "Jueves", "Tema Específico": "Anticoncepción de Emergencia y Criterios Médicos de Elegibilidad OMS.", "Meta": "Lectura Guía + 10 choices"},
-            {"Día": "Viernes", "Tema Específico": "Hemorragia Postparto (Atonía Uterina) + Batería semanal de choices.", "Meta": "20 choices + Error Log"}
+            {"Día": "Lunes", "Tema Específico": "Hemorragias de la 1ª Mitad: Aborto (amenaza, incompleto, diferido, séptico) y Embarazo Ectópico (criterios de Metotrexato vs Quirúrgico).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Hemorragias de la 2ª Mitad: DPPNI vs Placenta Previa vs Rotura Uterina y Vasa Previa. Diagnóstico diferencial y conducta.", "Meta": "Cuadro diferencial + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Interrupción Voluntaria y Legal del Embarazo (IVE/ILE): Marco legal (Ley 27.610), plazos, esquemas de Misoprostol / Mifepristona y objeción de conciencia.", "Meta": "Lectura Ley + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Anticoncepción: Criterios Médicos de Elegibilidad OMS en puerperio y lactancia, Anticoncepción Hormonal de Emergencia y colocación de DIU/SIU.", "Meta": "Lectura Guía + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Hemorragia Postparto (Atonía Uterina) y manejo con uterotónicos + Batería semanal de choices.", "Meta": "20 choices + Error Log"}
         ],
-        "Semana 5 (Pediatría: Infecciones Respiratorias IRAB)": [
-            {"Día": "Lunes", "Tema Específico": "Bronquiolitis Aguda: Criterios de gravedad (Score de Tal) y soporte hídrico.", "Meta": "Lectura SAP + 10 choices"},
-            {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Amoxicilina oral e internación.", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Miércoles", "Tema Específico": "Laringitis y Crup: Dexametasona y Adrenalina nebulizada.", "Meta": "Algoritmo + 10 choices"},
-            {"Día": "Jueves", "Tema Específico": "Crisis Asmática Pediátrica: Escalonamiento terapéutico GINA/SAP.", "Meta": "Lectura 30 min + 10 choices"},
-            {"Día": "Viernes", "Tema Específico": "Batería integradora de IRAB pediátricas.", "Meta": "20 choices + Error Log"}
+        "Semana 3 (Tocoginecología: Infecciones Perinatales y Control Prenatal)": [
+            {"Día": "Lunes", "Tema Específico": "Sífilis Gestacional y Congénita: Interpretación de VDRL vs pruebas treponémicas, tratamiento con Penicilina Benzatínica y manejo de la pareja.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Infección Urinaria en el Embarazo (Bacteriuria Asintomática, Cistitis, Pielonefritis) + Tamizaje de Estreptococo Grupo B (SGB).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Infecciones TORCH: Toxoplasmosis gestacional (IgG/IgM/Avidez y Espiramicina), Chagas perinatal y Citomegalovirus.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Rutina de Control Prenatal, Carné Perinatal, suplementación (Hierro/Ácido fólico) y Vacunas (VSR sem 32-36, dTPa y Antigripal).", "Meta": "Lectura Guía + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Simulacro Semanal de Obstetricia e Infecciones Perinatales.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 4 (Tocoginecología: Ginecología y Patología Cervical/Mamaria)": [
+            {"Día": "Lunes", "Tema Específico": "Patología Cervical: Tamizaje con Papanicolaou y test DNA-VPH (Consenso FASGO 2024 vs Directrices MS Brasil), colposcopía y manejo de LSIL/HSIL.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Infecciones del Tracto Genital Inferior: Vaginosis bacteriana, Candidiasis, Tricomoniasis y Enfermedad Pélvica Inflamatoria (EPI).", "Meta": "Cuadro diferencial + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Patología Mamaria: Nódulos mamarios benignos, mastalgia, categorización BI-RADS mamográfico y tamizaje de cáncer de mama.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Endocrinología Ginecológica: Sangrado Uterino Anormal (PALM-COEIN), Síndrome de Ovario Poliquístico (Rotterdam) y Climaterio.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Atención a Víctimas de Violencia Sexual (Profilaxis PEP, anticoncepción de urgencia) + Batería de 20 choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 5 (Pediatría: Infecciones Respiratorias Agudas Bajas - IRAB)": [
+            {"Día": "Lunes", "Tema Específico": "Bronquiolitis Aguda: Diagnóstico clínico, factores de riesgo de gravedad, Score de Tal, oxigenoterapia y criterio de no uso de B2 ni corticoides.", "Meta": "Lectura SAP + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Etiologías según grupo etario, tratamiento ambulatorio con Amoxicilina y criterios de internación.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Laringitis y Crup: Diagnóstico clínico, estridor, clasificación de gravedad y dosis de Dexametasona / Adrenalina nebulizada.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Crisis Asmática Pediátrica: Evaluación de severidad, esquema de rescate con Salbutamol reglado y corticoides sistémicos según GINA/SAP.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Batería Integradora de IRAB Pediátricas.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 6 (Pediatría: Gastroenterología, Medio Interno y Nefrología)": [
+            {"Día": "Lunes", "Tema Específico": "Diarrea Aguda y Deshidratación: Evaluación clínica de grado de deshidratación y Planes de Hidratación OMS (Plan A domiciliario, Plan B con SRO, Plan C EV).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Síndrome Urémico Hemolítico (SUH): Fisiopatología por Shiga-toxina, tríada diagnóstica, soporte hídrico/transfusional y contraindicación de antibióticos.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Infección del Trato Urinario (ITU) y Fiebre sin Foco: Toma de muestra estéril, tratamiento empírico oral/EV y criterios de ecografía/CUGM.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Cetoacidosis Diabética Pediátrica: Protocolo estricto de hidratación con SF 0.9%, corrección de potasio e infusión de insulina continua (sin bolos).", "Meta": "Protocolo + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Batería semanal de Gastroenterología y Nefrología Pediátrica.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 7 (Pediatría: Puericultura, Crecimiento y Prevención)": [
+            {"Día": "Lunes", "Tema Específico": "Hitos del Crecimiento y Neurodesarrollo: Evaluación motora, lenguaje y social por etapas, tamizaje de autismo (M-CHAT) y pautas de alarma.", "Meta": "Tablas desarrollo + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Nutrición Infantil: Lactancia materna exclusiva, alimentación complementaria y pautas de suplementación con Hierro/Vitaminas (SAP vs MS Brasil).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Trastornos Nutricionales: Diagnóstico antropométrico de Desnutrición (Marasmo vs Kwashiorkor), Sobrepeso y Obesidad (IMC > Pc 97).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Pautas de Crianza y Prevención de Accidentes: Sueño Seguro SAP (posición supina, colecho de riesgo) y sospecha de Maltrato/Abuso Infantil.", "Meta": "Lectura Guías + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Simulacro Semanal de Puericultura y Desarrollo Infantil.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 8 (Pediatría: Vacunación, Neonatología y Exantemáticas)": [
+            {"Día": "Lunes", "Tema Específico": "Calendario Nacional de Vacunación: Esquemas completos en lactantes e ingreso escolar, puesta al día y vacunas específicas (BCG, Rotavirus, Triple Viral, VPH).", "Meta": "Tablas vacunas + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Neonatología Inmediata: Test de APGAR, examen físico neonatal y Reanimación Cardiopulmonar Neonatal (algoritmo SAP/SBP).", "Meta": "Algoritmo RCP + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Ictericia Neonatal: Fisiológica vs Patológica (incompatibilidad ABO/Rh), indicación de Luminoterapia y Exanguinotransfusión.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Enfermedades Exantemáticas: Sarampión, Rubéola, Varicela, Eritema Infeccioso, Roséola, Escarlatina y Enfermedad de Kawasaki.", "Meta": "Cuadro diferencial + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Pesquisa Neonatal (Test del talón, OEA, reflejo rojo) + Batería de 20 choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 9 (Clínica Médica: Cardiología y Urgencias Vasculares)": [
+            {"Día": "Lunes", "Tema Específico": "Hipertensión Arterial Sistémica (HAS): Criterios diagnósticos en consultorio/MAPA/MDPA, metas de control y tratamiento escalonado (IECA/ARA-II, BCC, Tiazidas).", "Meta": "Lectura SAHA + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Crisis Hipertensivas: Urgencia vs Emergencia Hipertensiva (daño de órgano blanco) y manejo endovenoso con Labetalol / Nitroprusiato.", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Síndrome Coronario Agudo: IAM con elevación del ST (ECG, ventana terapéutica, angioplastia vs trombolíticos) y SCA sin elevación del ST (doble antiagregación).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Insuficiencia Cardíaca (IC): IC con FE reducida y los 4 pilares farmacológicos con impacto en sobrevida (iSGLT2, ARNI/IECA, BB, Antagonistas Aldosterona).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Fibrilación Auricular (estratificación CHA2DS2-VASc y anticoagulación) + Batería de 20 choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 10 (Clínica Médica: Infectología y Arbovirosis)": [
+            {"Día": "Lunes", "Tema Específico": "Dengue y Arbovirosis Urbanas: Fases clínicas, signos de alarma, clasificación por Grupos A, B, C, D y protocolo de reposición con cristaloides.", "Meta": "Guías MSAL/MS + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Tuberculosis (TBC): Diagnóstico con GeneXpert / Baciloscopía, esquema RIPE (2RIPE/4RI) y manejo de Tuberculosis Latente en contactos estrechos.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "VIH / SIDA: Diagnóstico serológico, inicio de TARV y profilaxis de infecciones oportunistas (Pneumocystis, Toxoplasmosis, Criptococo).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Infecciones del SNC: Meningitis bacteriana aguda (punción lumbar, LCR, antibiótico empírico + Dexametasona y quimioprofilaxis a contactos).", "Meta": "Cuadro LCR + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Sepsis y Shock Séptico (Criterios Sepsis-3, bundle de la primera hora) + Batería de choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 11 (Clínica Médica: Endocrinología y Metabolismo)": [
+            {"Día": "Lunes", "Tema Específico": "Diabetes Mellitus Tipo 2: Diagnóstico, metas de HbA1c, cambios en estilo de vida y farmacoterapia oral (Metformina, iSGLT2, agonistas GLP-1).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Insulinoterapia en DM: Indicaciones, esquemas basal-bolo y prevención de hipoglucemias.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Cetoacidosis Diabética (CAD) y Estado Hiperglucémico Hiperosmolar (EHH) en adultos: Criterios diferenciales, fluidoterapia, potasio e insulina EV.", "Meta": "Protocolo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Patología Tiroidea: Hipotiroidismo primario y subclínico (TSH/T4L, dosis Levotiroxina), Hipertiroidismo y Enfermedad de Graves.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Manejo de Dislipemias y Riesgo Cardiovascular Global + Batería de choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 12 (Clínica Médica: Neumonología, Nefrología y Neurología)": [
+            {"Día": "Lunes", "Tema Específico": "Asma y EPOC en el Adulto: Diagnóstico espirométrico, clasificación GOLD (A, B, E), manejo crónico y tratamiento de exacerbaciones.", "Meta": "Lectura GINA/GOLD + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Score CURB-65 y esquemas antibióticos empíricos en internación vs ambulatorio.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Medio Interno y Trastornos Hidroelectrolíticos: Hiponatremia (cálculo de corrección) e Hiperkalemia grave (Gluconato de calcio y medidas de desplazamiento).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Accidente Cerebrovascular (ACV): ACV Isquémico agudo, escala NIHSS, ventana para rtPA endovenoso (<4.5 h) y manejo de TA.", "Meta": "Algoritmo ACV + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Cefaleas (Migraña, Tensional, Cluster y Red Flags) + Batería semanal de 20 choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 13 (Clínica Médica: Gastroenterología, Hematología y Endemias Brasil)": [
+            {"Día": "Lunes", "Tema Específico": "Hemorragia Digestiva Alta (HDA variceal vs no variceal), Úlcera péptica, erradicación de H. pylori y Pancreatitis Aguda (Atlanta).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Hepatopatías Crónicas: Cirrosis y sus complicaciones (Ascitis, Peritonitis Bacteriana Espontánea, Encefalopatía Hepática).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Hematología: Diagnóstico diferencial de Anemias (Ferropénica, Megaloblástica por B12/Folato, Anemia de Enfermedades Crónicas, Hemolíticas).", "Meta": "Algoritmo anemias + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Endemias Revalida Brasil: Leishmaniasis Visceral (Calazar), Chagas agudo/crónico, Esporotricosis, Esquistosomiasis y Accidentes Ofídicos.", "Meta": "Guías MS Brasil + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Simulacro General de Clínica Médica (20 choices oficiales).", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 14 (Cirugía General: Trauma y Protocolo ATLS)": [
+            {"Día": "Lunes", "Tema Específico": "Evaluación Inicial en Trauma (ABCDE): Manejo de vía aérea con protección cervical, intubación e indicaciones de cricotiroidostomía.", "Meta": "Lectura ATLS + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Trauma Torácico: Neumotórax a Tensión (diagnóstico clínico y descompresión con aguja), Hemotórax Masivo y Taponamiento Cardíaco (Beck).", "Meta": "Cuadro ATLS + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Trauma Abdominal y Pelviano: Evaluación hemodinámica, ecografía FAST, TC con contraste y criterios de laparotomía exploradora vs manejo no operatorio.", "Meta": "Algoritmo FAST + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Choque Hemorrágico en Trauma (Clases I a IV), Protocolo de Transfusión Masiva (1:1:1) y Ácido Tranexámico precoz.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Quemaduras (Fórmula de Parkland, vía aérea y quemaduras eléctricas) + Batería de choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 15 (Cirugía General: Abdomen Agudo Inflamatorio y Biliar)": [
+            {"Día": "Lunes", "Tema Específico": "Apendicitis Aguda: Diagnóstico clínico, escala de Alvarado, ecografía/TC en casos dudosos y tratamiento quirúrgico.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Patología Biliar: Cólico biliar, Colecistitis Aguda (Criterios de Tokyo) y Colecistectomía laparoscópica.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Colangitis Aguda (Tríada de Charcot, Péntada de Reynolds y descompresión biliar urgente) y Coledocolitiasis (CPRE).", "Meta": "Algoritmo + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Diverticulitis Aguda: TC como Gold Standard, clasificación de Hinchey y tratamiento médico vs quirúrgico.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Batería Semanal de Abdomen Agudo Inflamatorio.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 16 (Cirugía General: Oclusión, Pared Abdominal y Cirugía Pediátrica)": [
+            {"Día": "Lunes", "Tema Específico": "Abdomen Agudo Obstructivo: Obstrucción de intestino delgado (bridas) vs colon (cáncer, vólvulo de sigmoides) e Isquemia Mesentérica.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Patología de Pared Abdominal: Hernias inguinales (directa vs indirecta), crurales y umbilicales. Reducible vs Incarcerada vs Estrangulada.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Patología Anorrectal Benigna: Hemorroides, Fisura Anal y Abscesos/Fístulas perianales.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Cirugía Pediátrica y Ortopedia: Estenosis Hipertrófica del Píloro, Invaginación Intestinal y Cadera Dolorosa (Sinovitis vs Artritis Séptica - Kocher).", "Meta": "Cuadro comparativo + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Simulacro General de Cirugía (20 choices oficiales).", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 17 (Salud Pública: Epidemiología, Bioestadística y Bioética)": [
+            {"Día": "Lunes", "Tema Específico": "Medidas de Frecuencia y Mortalidad: Incidencia acumulada, densidad de incidencia, prevalencia, tasa de mortalidad infantil y materna.", "Meta": "Fórmulas + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Diseños de Estudios Epidemiológicos: Transversales, Casos y Controles (Odds Ratio), Cohortes (Riesgo Relativo) y Ensayos Clínicos.", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Pruebas Diagnósticas: Sensibilidad, Especificidad, Valor Predictivo Positivo (VPP) y Negativo (VPN), Curvas ROC.", "Meta": "Ejercicios + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Atención Primaria de la Salud (APS): Atributos de Starfield, Prevención Cuaternaria y Vigilancia Epidemiológica (SISA/SINAN).", "Meta": "Lectura 30 min + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Bioética: Principios bioéticos, secreto profesional y comunicación de malas noticias (Protocolo SPIKES) + Choices.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 18 (Salud Pública: Marco Legal Argentina vs Sistema SUS Brasil)": [
+            {"Día": "Lunes", "Tema Específico": "Leyes Sanitarias Argentina: Ley 26.529 (Derechos del Paciente, Consentimiento e Historia Clínica) y Ley 25.929 (Parto Humanizado).", "Meta": "Lectura de Ley + 10 choices"},
+            {"Día": "Martes", "Tema Específico": "Salud Mental en Argentina: Ley 26.657 (Criterio de internación involuntaria por 'riesgo cierto e inminente', interdisciplina y derechos).", "Meta": "Lectura de Ley + 10 choices"},
+            {"Día": "Miércoles", "Tema Específico": "Protección de Derechos de NNyA (Ley 26.061), Identidad de Género (Ley 26.743) y Autonomía Progresiva en Salud.", "Meta": "Lectura de Ley + 10 choices"},
+            {"Día": "Jueves", "Tema Específico": "Sistema Único de Saúde (SUS Brasil): Constitución de 1988 (Arts. 196-200), Ley 8.080 (Principios) y Ley 8.142 (Participación Social).", "Meta": "Lectura SUS + 10 choices"},
+            {"Día": "Viernes", "Tema Específico": "Estratégia Saúde da Família (ESF): Atribuciones del equipo y territorialización + Batería de 20 choices de Leyes/SUS.", "Meta": "20 choices + Error Log"}
+        ],
+        "Semana 19 (Consolidación Teórica & Simulacros Intensivos I)": [
+            {"Día": "Lunes", "Tema Específico": "Simulacro Cronometrado 1: 50 Preguntas Integradoras de Tocoginecología y Pediatría.", "Meta": "Simulacro + Cuaderno de Errores"},
+            {"Día": "Martes", "Tema Específico": "Revisión Focalizada: Repaso de puntos débiles detectados en el Cuaderno de Errores.", "Meta": "Flashcards SRS + Algoritmos"},
+            {"Día": "Miércoles", "Tema Específico": "Simulacro Cronometrado 2: 50 Preguntas Integradoras de Clínica Médica y Cirugía General.", "Meta": "Simulacro + Cuaderno de Errores"},
+            {"Día": "Jueves", "Tema Específico": "Revisión de Guía Comparativa AR vs BR (Dosis críticas, leyes y calendarios).", "Meta": "Lectura Matriz Comparativa"},
+            {"Día": "Viernes", "Tema Específico": "Simulacro Completo de 100 Preguntas (Examen Oficial de Años Anteriores).", "Meta": "100 choices + Diagnóstico Metacognitivo"}
+        ],
+        "Semana 20 (Consolidación Teórica & Simulacros Intensivos II)": [
+            {"Día": "Lunes", "Tema Específico": "Simulacro Completo 100 Preguntas: Foco en Preguntas Trampa y Distractores Frecuentes.", "Meta": "100 choices + Análisis de Errores"},
+            {"Día": "Martes", "Tema Específico": "Revisión Completa del Cuaderno Blanco (Reglas de Oro personales para no volver a fallar).", "Meta": "Lectura de Reglas de Oro"},
+            {"Día": "Miércoles", "Tema Específico": "Repaso Ultrarrápido de High-Yield Pearls de las 5 Grandes Áreas Troncales.", "Meta": "Flashcards High-Yield"},
+            {"Día": "Jueves", "Tema Específico": "Simulacro Final de 100 Preguntas con Tiempo Real (4 horas).", "Meta": "Simulacro Final"},
+            {"Día": "Viernes", "Tema Específico": "Cierre de Estudio, Estrategia de Manejo del Tiempo y Preparación Mental.", "Meta": "Consolidación y Descanso"}
         ]
     }
 
     sem_select = st.selectbox("Seleccioná la semana a visualizar en detalle:", list(cronograma_desglosado.keys()))
     df_sem = pd.DataFrame(cronograma_desglosado[sem_select])
     st.dataframe(df_sem, use_container_width=True, hide_index=True)
-
+    
 # -------------------------------------------------------------
 # 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
 # -------------------------------------------------------------
@@ -348,11 +467,11 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                 st.markdown("---")
 
 # -------------------------------------------------------------
-# 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (GEMINI)
+# 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (AMPLIADO A 20)
 # -------------------------------------------------------------
 elif menu == "✨ Generador de Choices con IA":
     st.header("✨ Generador Automático de Choices Médicos con IA")
-    st.caption("Creá preguntas inéditas basadas en casos clínicos reales ajustadas a los programas de Argentina y Brasil.")
+    st.caption("Creá baterías de preguntas inéditas basadas en casos clínicos reales ajustadas a los programas oficiales de Argentina y Brasil.")
 
     col_g1, col_g2 = st.columns(2)
     with col_g1:
@@ -360,18 +479,18 @@ elif menu == "✨ Generador de Choices con IA":
         area_ia = st.selectbox("Especialidad:", ["Tocoginecología", "Pediatría", "Clínica Médica", "Cirugía General", "Salud Pública y Leyes"])
     with col_g2:
         enfoque_ia = st.selectbox("Estilo de Examen:", ["🇦🇷 Examen Único / CABA (Argentina)", "🇧🇷 Revalida INEP (Brasil)"])
-        cant_q = st.slider("Cantidad de preguntas a generar:", 1, 5, 3)
+        cant_q = st.slider("Cantidad de preguntas a generar (Máximo 20):", min_value=1, max_value=20, value=5)
 
     if st.button("🚀 Generar y Guardar Choices con IA"):
         if not model:
-            st.error("Error al conectar con la API de Gemini.")
+            st.error("Error al conectar con la API de Gemini. Verificá tu clave en Secrets.")
         else:
-            with st.spinner("La IA está redactando casos clínicos con distractores y justificación médica..."):
+            with st.spinner(f"La IA está redactando {cant_q} casos clínicos con distractores y justificación oficial..."):
                 prompt = f"""
                 Actuá como miembro del comité evaluador médico de residencias médicas ({enfoque_ia}).
-                Generá {cant_q} preguntas de opción múltiple de alta calidad médica sobre: '{tema_ia}' en el área de '{area_ia}'.
+                Generá exactamente {cant_q} preguntas de opción múltiple de alta calidad médica sobre: '{tema_ia}' en el área de '{area_ia}'.
                 
-                Devolvé ÚNICAMENTE un arreglo JSON válido (sin bloques de markdown adicionales) con este formato exacto:
+                Devolvé ÚNICAMENTE un arreglo JSON válido (sin texto antes ni después, y sin bloques adicionales de markdown) con esta estructura exacta:
                 [
                   {{
                     "pregunta": "Caso clínico detallado...",
@@ -380,7 +499,7 @@ elif menu == "✨ Generador de Choices con IA":
                     "opcion_c": "Texto opción C",
                     "opcion_d": "Texto opción D",
                     "correcta": "A", 
-                    "justificacion": "Explicación médica detallada citando guías vigentes."
+                    "justificacion": "Explicación médica detallada citando guías y consensos vigentes."
                   }}
                 ]
                 """
