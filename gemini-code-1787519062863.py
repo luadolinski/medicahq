@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import random
 import hashlib
 import json
+import re
 import google.generativeai as genai
 
 # -------------------------------------------------------------
