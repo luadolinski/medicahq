@@ -1,5 +1,4 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
 from datetime import datetime, timedelta
@@ -8,6 +7,13 @@ import hashlib
 import json
 import re
 import google.generativeai as genai
+
+# Conexión a Google Sheets
+try:
+    from streamlit_gsheets import GSheetsConnection
+except ImportError:
+    st.error("Instalando dependencias necesarias. Por favor esperá unos segundos o reiniciá la app.")
+    st.stop()
 
 # -------------------------------------------------------------
 # CONFIGURACIÓN DE PÁGINA
@@ -218,16 +224,16 @@ def login_form():
         if st.button("Iniciar Sesión", use_container_width=True):
             users_df = get_sheet_data("users")
             if not users_df.empty and "username" in users_df.columns:
-                user_row = users_df[users_df["username"] == u_input.lower()]
-                if not user_row.empty and user_row.iloc[0]["password_hash"] == hash_password(p_input):
+                user_row = users_df[users_df["username"].astype(str).str.lower() == u_input.lower()]
+                if not user_row.empty and str(user_row.iloc[0]["password_hash"]) == hash_password(p_input):
                     st.session_state.authenticated = True
-                    st.session_state.current_user = user_row.iloc[0]["username"]
-                    st.session_state.user_name = user_row.iloc[0]["nombre"]
+                    st.session_state.current_user = str(user_row.iloc[0]["username"])
+                    st.session_state.user_name = str(user_row.iloc[0]["nombre"])
                     st.rerun()
                 else:
                     st.error("Usuario o contraseña incorrectos.")
             else:
-                st.error("Error al conectar con la base de datos de usuarios.")
+                st.error("Error al conectar con la base de datos de usuarios en Google Sheets.")
                 
     with col2:
         with st.expander("Crear una nueva cuenta"):
@@ -237,7 +243,7 @@ def login_form():
             if st.button("Registrarse"):
                 if new_u and new_p:
                     users_df = get_sheet_data("users")
-                    if not users_df.empty and new_u.lower() in users_df["username"].values:
+                    if not users_df.empty and new_u.lower() in users_df["username"].astype(str).str.lower().values:
                         st.error("El usuario ya existe.")
                     else:
                         new_row = pd.DataFrame([{
@@ -288,7 +294,7 @@ if menu == "🏠 Dashboard & Repaso SRS":
     
     error_df = get_sheet_data("error_log")
     if not error_df.empty and "username" in error_df.columns:
-        user_logs = error_df[error_df["username"] == st.session_state.current_user]
+        user_logs = error_df[error_df["username"].astype(str) == st.session_state.current_user]
         total_hechas = len(user_logs)
         total_correctas = len(user_logs[user_logs["es_correcta"] == 1])
     else:
@@ -310,7 +316,7 @@ if menu == "🏠 Dashboard & Repaso SRS":
     choices_df = get_sheet_data("choices")
     
     if not choices_df.empty and "next_review" in choices_df.columns:
-        due_choices = choices_df[choices_df["next_review"] <= today]
+        due_choices = choices_df[choices_df["next_review"].astype(str) <= today]
     else:
         due_choices = pd.DataFrame()
 
@@ -452,16 +458,26 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                 st.markdown("---")
 
 # -------------------------------------------------------------
-# 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (AMPLIADO A 20)
+# 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
 # -------------------------------------------------------------
 elif menu == "✨ Generador de Choices con IA":
     st.header("✨ Generador Automático de Choices Médicos con IA")
-    st.caption("Creá preguntas de opción múltiple que se guardan en Google Sheets.")
+    st.caption("Creá preguntas de opción múltiple que se guardan directamente en Google Sheets.")
 
     col_g1, col_g2 = st.columns(2)
     with col_g1:
         tema_ia = st.text_input("Tema a evaluar:", value="Preeclampsia Severa y Manejo de Crisis")
-        area_ia = st.selectbox("Especialidad:", ["Tocoginecología", "Pediatría", "Clínica Médica", "Cirugía General", "Salud Pública y Leyes"])
+        area_ia = st.selectbox(
+            "Especialidad / Área:",
+            [
+                "Tocoginecología",
+                "Pediatría",
+                "Clínica Médica",
+                "Cirugía General",
+                "Salud Pública y Leyes",
+                "Otros / Especialidades Complementarias"
+            ]
+        )
     with col_g2:
         enfoque_ia = st.selectbox("Estilo de Examen:", ["🇦🇷 Examen Único / CABA (Argentina)", "🇧🇷 Revalida INEP (Brasil)"])
         cant_q = st.slider("Cantidad de preguntas a generar (Máximo 20):", min_value=1, max_value=20, value=5)
@@ -545,7 +561,8 @@ elif menu == "📝 Banco de Choices & Simulacros":
         modo_practica = st.radio("Modalidad de Estudio:", ["📚 Por Área Específica", "🎲 Simulacro Aleatorio"], horizontal=True)
 
         if modo_practica == "📚 Por Área Específica":
-            area_sel = st.selectbox("Seleccioná el Área Médica:", choices_df["area"].dropna().unique())
+            areas_disponibles = sorted(list(choices_df["area"].dropna().unique()))
+            area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
             filtered_df = choices_df[choices_df["area"] == area_sel].reset_index(drop=True)
         else:
             filtered_df = choices_df.sample(frac=1).reset_index(drop=True)
@@ -608,7 +625,7 @@ elif menu == "📕 Cuaderno de Errores":
     choices_df = get_sheet_data("choices")
 
     if not error_df.empty and not choices_df.empty:
-        user_errors = error_df[(error_df["username"] == st.session_state.current_user) & ((error_df["es_correcta"] == 0) | (error_df["flag_duda"] == 1))]
+        user_errors = error_df[(error_df["username"].astype(str) == st.session_state.current_user) & ((error_df["es_correcta"] == 0) | (error_df["flag_duda"] == 1))]
         merged = user_errors.merge(choices_df, left_on="choice_id", right_on="id", suffixes=('_log', '_choice'))
     else:
         merged = pd.DataFrame()
@@ -656,7 +673,7 @@ elif menu == "📊 Estadísticas de Rendimiento":
     choices_df = get_sheet_data("choices")
 
     if not error_df.empty and not choices_df.empty:
-        user_logs = error_df[error_df["username"] == st.session_state.current_user]
+        user_logs = error_df[error_df["username"].astype(str) == st.session_state.current_user]
         metrics_df = user_logs.merge(choices_df, left_on="choice_id", right_on="id")
     else:
         metrics_df = pd.DataFrame()
