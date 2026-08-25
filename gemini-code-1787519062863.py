@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# CONFIGURACIÓN DE GEMINI API (v2.5)
+# CONFIGURACIÓN DE GEMINI API (v3.6)
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
@@ -27,9 +27,12 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.5-flash")
-    except Exception as e:
-        model = None
+        model = genai.GenerativeModel("gemini-3.6-flash")
+    except Exception:
+        try:
+            model = genai.GenerativeModel("models/gemini-3.6-flash")
+        except Exception:
+            model = None
 
 # -------------------------------------------------------------
 # BASE DE DATOS LOCAL (SQLite Persistente)
@@ -428,7 +431,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             if not model:
                 st.error("Error: Verificá que tu API Key de Gemini esté configurada correctamente en Secrets.")
             else:
-                with st.spinner("Diseñando diagrama de flujo clínico..."):
+                with st.spinner("Diseñando diagrama de flujo clínico con Gemini 3.6..."):
                     prompt = f"""
                     Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y tratamiento de: {tema_sel}.
                     Reglas estrictas:
