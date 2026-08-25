@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # -------------------------------------------------------------
-# CONFIGURACIÓN DE GEMINI API
+# CONFIGURACIÓN ROBUSTA DE GEMINI API
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
@@ -27,11 +27,18 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Probamos primero con el identificador estándar actual
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Intentar obtener el primer modelo disponible compatible con generateContent
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # Priorizar gemini-1.5-flash o gemini-pro según disponibilidad
+        chosen_model = next((m for m in available_models if "flash" in m), None)
+        if not chosen_model:
+            chosen_model = next((m for m in available_models if "gemini-pro" in m), "gemini-pro")
+            
+        model = genai.GenerativeModel(chosen_model)
     except Exception:
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            model = genai.GenerativeModel("gemini-pro")
         except Exception:
             model = None
 
