@@ -1,7 +1,7 @@
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 import plotly.express as px
-import sqlite3
 from datetime import datetime, timedelta
 import random
 import hashlib
@@ -23,7 +23,6 @@ st.set_page_config(
 # CONFIGURACIÓN DE GEMINI API (v3.6)
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-
 model = None
 if GEMINI_API_KEY:
     try:
@@ -36,139 +35,25 @@ if GEMINI_API_KEY:
             model = None
 
 # -------------------------------------------------------------
-# BASE DE DATOS LOCAL (SQLite Persistente)
+# CONEXIÓN A GOOGLE SHEETS
 # -------------------------------------------------------------
-def get_db_connection():
-    conn = sqlite3.connect("medica_hq.db", check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+conn = st.connection("gsheets", type=GSheetsConnection)
+SPREADSHEET_URL = st.secrets.get("SPREADSHEET_URL", "")
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-def init_db():
-    conn = get_db_connection()
-    c = conn.cursor()
-    
-    # Tabla de Usuarios
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY,
-            password_hash TEXT,
-            nombre TEXT
-        )
-    ''')
-    
-    # Tabla de Choices
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS choices (
-            id TEXT PRIMARY KEY,
-            examen_origen TEXT,
-            area TEXT,
-            tema TEXT,
-            incidencia TEXT,
-            pregunta TEXT,
-            opcion_a TEXT,
-            opcion_b TEXT,
-            opcion_c TEXT,
-            opcion_d TEXT,
-            correcta TEXT,
-            justificacion TEXT,
-            drive_link TEXT,
-            next_review DATE,
-            interval_days INTEGER,
-            ease_factor REAL,
-            repetitions INTEGER
-        )
-    ''')
-    
-    # Tabla de Historial / Errores
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS error_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            choice_id TEXT,
-            fecha TIMESTAMP,
-            respuesta_dada TEXT,
-            es_correcta INTEGER,
-            flag_duda INTEGER,
-            motivo_error TEXT,
-            regla_oro TEXT,
-            FOREIGN KEY (choice_id) REFERENCES choices (id)
-        )
-    ''')
-    
-    # Migración automática de columna faltante
+def get_sheet_data(worksheet_name):
     try:
-        c.execute("ALTER TABLE error_log ADD COLUMN username TEXT")
-    except sqlite3.OperationalError:
-        pass
-    
-    # Crear usuario inicial por defecto
-    c.execute("SELECT COUNT(*) FROM users")
-    if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)", ("doctores", hash_password("medicos2026"), "Dra. Luana"))
-        
-    conn.commit()
-    conn.close()
+        return conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl="0s")
+    except Exception:
+        return pd.DataFrame()
 
-init_db()
+def save_sheet_data(worksheet_name, df):
+    conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
 
 # -------------------------------------------------------------
-# CONTROL DE SESIÓN
-# -------------------------------------------------------------
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
-if "current_user" not in st.session_state:
-    st.session_state.current_user = None
-
-def login_form():
-    st.title("🩺 Médica HQ | Ingreso a la Plataforma")
-    st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
-    
-    col1, col2 = st.columns([1, 1])
-    with col1:
-        u_input = st.text_input("Usuario", key="login_user")
-        p_input = st.text_input("Contraseña", type="password", key="login_pass")
-        
-        if st.button("Iniciar Sesión", use_container_width=True):
-            conn = get_db_connection()
-            c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE username = ? AND password_hash = ?", (u_input.lower(), hash_password(p_input)))
-            usr = c.fetchone()
-            conn.close()
-            
-            if usr:
-                st.session_state.authenticated = True
-                st.session_state.current_user = usr["username"]
-                st.session_state.user_name = usr["nombre"]
-                st.rerun()
-            else:
-                st.error("Usuario o contraseña incorrectos.")
-                
-    with col2:
-        with st.expander("Crear una nueva cuenta"):
-            new_u = st.text_input("Nuevo Usuario")
-            new_n = st.text_input("Tu Nombre")
-            new_p = st.text_input("Nueva Contraseña", type="password")
-            if st.button("Registrarse"):
-                if new_u and new_p:
-                    conn = get_db_connection()
-                    c = conn.cursor()
-                    try:
-                        c.execute("INSERT INTO users VALUES (?, ?, ?)", (new_u.lower(), hash_password(new_p), new_n))
-                        conn.commit()
-                        st.success("Cuenta creada exitosamente. Ya podés iniciar sesión.")
-                    except:
-                        st.error("El usuario ya existe.")
-                    conn.close()
-
-if not st.session_state.authenticated:
-    login_form()
-    st.stop()
-
-# -------------------------------------------------------------
-# CRONOGRAMA GLOBAL (SEMANAS 1 A 20) - ACCESIBLE PARA TODA LA APP
+# CRONOGRAMA GLOBAL (SEMANAS 1 A 20)
 # -------------------------------------------------------------
 cronograma_desglosado = {
     "Semana 1 (Tocoginecología: Trastornos Hipertensivos)": [
@@ -314,6 +199,61 @@ cronograma_desglosado = {
 }
 
 # -------------------------------------------------------------
+# CONTROL DE SESIÓN
+# -------------------------------------------------------------
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+
+def login_form():
+    st.title("🩺 Médica HQ | Ingreso a la Plataforma")
+    st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        u_input = st.text_input("Usuario", key="login_user")
+        p_input = st.text_input("Contraseña", type="password", key="login_pass")
+        
+        if st.button("Iniciar Sesión", use_container_width=True):
+            users_df = get_sheet_data("users")
+            if not users_df.empty and "username" in users_df.columns:
+                user_row = users_df[users_df["username"] == u_input.lower()]
+                if not user_row.empty and user_row.iloc[0]["password_hash"] == hash_password(p_input):
+                    st.session_state.authenticated = True
+                    st.session_state.current_user = user_row.iloc[0]["username"]
+                    st.session_state.user_name = user_row.iloc[0]["nombre"]
+                    st.rerun()
+                else:
+                    st.error("Usuario o contraseña incorrectos.")
+            else:
+                st.error("Error al conectar con la base de datos de usuarios.")
+                
+    with col2:
+        with st.expander("Crear una nueva cuenta"):
+            new_u = st.text_input("Nuevo Usuario")
+            new_n = st.text_input("Tu Nombre")
+            new_p = st.text_input("Nueva Contraseña", type="password")
+            if st.button("Registrarse"):
+                if new_u and new_p:
+                    users_df = get_sheet_data("users")
+                    if not users_df.empty and new_u.lower() in users_df["username"].values:
+                        st.error("El usuario ya existe.")
+                    else:
+                        new_row = pd.DataFrame([{
+                            "username": new_u.lower(),
+                            "password_hash": hash_password(new_p),
+                            "nombre": new_n
+                        }])
+                        users_updated = pd.concat([users_df, new_row], ignore_index=True)
+                        save_sheet_data("users", users_updated)
+                        st.success("Cuenta creada exitosamente. Ya podés iniciar sesión.")
+
+if not st.session_state.authenticated:
+    login_form()
+    st.stop()
+
+# -------------------------------------------------------------
 # BARRA LATERAL
 # -------------------------------------------------------------
 st.sidebar.markdown(f"👤 **{st.session_state.user_name}** (`@{st.session_state.current_user}`)")
@@ -346,14 +286,14 @@ menu = st.sidebar.radio(
 if menu == "🏠 Dashboard & Repaso SRS":
     st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
     
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT COUNT(*) FROM error_log WHERE username = ?", (st.session_state.current_user,))
-    total_hechas = c.fetchone()[0]
-    
-    c.execute("SELECT COUNT(*) FROM error_log WHERE username = ? AND es_correcta = 1", (st.session_state.current_user,))
-    total_correctas = c.fetchone()[0]
-    conn.close()
+    error_df = get_sheet_data("error_log")
+    if not error_df.empty and "username" in error_df.columns:
+        user_logs = error_df[error_df["username"] == st.session_state.current_user]
+        total_hechas = len(user_logs)
+        total_correctas = len(user_logs[user_logs["es_correcta"] == 1])
+    else:
+        total_hechas = 0
+        total_correctas = 0
 
     precision = int((total_correctas / total_hechas * 100)) if total_hechas > 0 else 0
 
@@ -367,9 +307,12 @@ if menu == "🏠 Dashboard & Repaso SRS":
     st.subheader("🧠 Repaso Espaciado Programado para Hoy")
     
     today = str(datetime.now().date())
-    conn = get_db_connection()
-    due_choices = pd.read_sql("SELECT * FROM choices WHERE next_review <= ?", conn, params=(today,))
-    conn.close()
+    choices_df = get_sheet_data("choices")
+    
+    if not choices_df.empty and "next_review" in choices_df.columns:
+        due_choices = choices_df[choices_df["next_review"] <= today]
+    else:
+        due_choices = pd.DataFrame()
 
     if len(due_choices) == 0:
         st.success("🎉 ¡Estás al día! No tenés preguntas pendientes de la curva del olvido.")
@@ -389,7 +332,7 @@ if menu == "🏠 Dashboard & Repaso SRS":
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO
 # -------------------------------------------------------------
-if menu == "📅 Cronograma Semanal Detallado":
+elif menu == "📅 Cronograma Semanal Detallado":
     st.header("📅 Cronograma Completo y Exhaustivo (Semanas 1 a 20)")
     st.caption("Planificación estructurada de 1 a 2 horas diarias de lunes a viernes.")
 
@@ -482,16 +425,18 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
     with t4:
         st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
         palabras = [w for w in tema_limpio.split() if len(w) > 4][:2]
-        query_kw = f"%{palabras[0]}%" if palabras else "%"
+        query_kw = palabras[0].lower() if palabras else ""
         
-        conn = get_db_connection()
-        quiz_q = pd.read_sql("SELECT * FROM choices WHERE tema LIKE ? OR pregunta LIKE ? LIMIT 5", conn, params=(query_kw, query_kw))
-        conn.close()
+        choices_df = get_sheet_data("choices")
+        if not choices_df.empty and "tema" in choices_df.columns:
+            quiz_q = choices_df[choices_df["tema"].astype(str).str.lower().str.contains(query_kw, na=False)].head(5)
+        else:
+            quiz_q = pd.DataFrame()
 
         if len(quiz_q) == 0:
-            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar una batería de preguntas en la solapa '✨ Generador de Choices con IA'.")
+            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar preguntas en la solapa '✨ Generador de Choices con IA'.")
         else:
-            for idx, q_row in quiz_q.iterrows():
+            for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
                 ans = st.radio(
                     f"Opciones para P{idx+1}:",
@@ -505,12 +450,13 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                         st.error(f"Incorrecto. La respuesta oficial era la opción {q_row['correcta']}.")
                     st.info(q_row['justificacion'])
                 st.markdown("---")
+
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (AMPLIADO A 20)
 # -------------------------------------------------------------
 elif menu == "✨ Generador de Choices con IA":
     st.header("✨ Generador Automático de Choices Médicos con IA")
-    st.caption("Creá baterías de preguntas inéditas basadas en casos clínicos reales ajustadas a los programas oficiales de Argentina y Brasil.")
+    st.caption("Creá preguntas de opción múltiple que se guardan en Google Sheets.")
 
     col_g1, col_g2 = st.columns(2)
     with col_g1:
@@ -520,16 +466,16 @@ elif menu == "✨ Generador de Choices con IA":
         enfoque_ia = st.selectbox("Estilo de Examen:", ["🇦🇷 Examen Único / CABA (Argentina)", "🇧🇷 Revalida INEP (Brasil)"])
         cant_q = st.slider("Cantidad de preguntas a generar (Máximo 20):", min_value=1, max_value=20, value=5)
 
-    if st.button("🚀 Generar y Guardar Choices con IA"):
+    if st.button("🚀 Generar y Guardar Choices en Google Sheets"):
         if not model:
-            st.error("Error al conectar con la API de Gemini. Verificá tu clave en Secrets.")
+            st.error("Error al conectar con la API de Gemini.")
         else:
             with st.spinner(f"La IA está redactando {cant_q} casos clínicos con distractores y justificación oficial..."):
                 prompt = f"""
                 Actuá como miembro del comité evaluador médico de residencias médicas ({enfoque_ia}).
                 Generá exactamente {cant_q} preguntas de opción múltiple de alta calidad médica sobre: '{tema_ia}' en el área de '{area_ia}'.
                 
-                Devolvé ÚNICAMENTE un arreglo JSON válido (sin texto antes ni después, y sin bloques adicionales de markdown) con esta estructura exacta:
+                Devolvé ÚNICAMENTE un arreglo JSON válido (sin texto antes ni después) con esta estructura exacta:
                 [
                   {{
                     "pregunta": "Caso clínico detallado...",
@@ -538,7 +484,7 @@ elif menu == "✨ Generador de Choices con IA":
                     "opcion_c": "Texto opción C",
                     "opcion_d": "Texto opción D",
                     "correcta": "A", 
-                    "justificacion": "Explicación médica detallada citando guías y consensos vigentes."
+                    "justificacion": "Explicación médica detallada citando guías vigentes."
                   }}
                 ]
                 """
@@ -547,24 +493,33 @@ elif menu == "✨ Generador de Choices con IA":
                     clean_json = response.text.replace("```json", "").replace("```", "").strip()
                     generated_list = json.loads(clean_json)
 
-                    conn = get_db_connection()
-                    c = conn.cursor()
-                    guardados = 0
+                    choices_df = get_sheet_data("choices")
+                    new_rows = []
                     for item in generated_list:
-                        new_id = f"IA-{random.randint(10000, 99999)}"
-                        c.execute('''
-                            INSERT INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ''', (
-                            new_id, f"✨ IA Generada ({enfoque_ia[:8]})", area_ia, tema_ia, "Prioridad A",
-                            item["pregunta"], item["opcion_a"], item["opcion_b"], item["opcion_c"], item["opcion_d"],
-                            item["correcta"].upper(), item["justificacion"], "https://drive.google.com",
-                            str(datetime.now().date()), 1, 2.5, 0
-                        ))
-                        guardados += 1
-                    conn.commit()
-                    conn.close()
+                        new_rows.append({
+                            "id": f"IA-{random.randint(10000, 99999)}",
+                            "examen_origen": f"✨ IA ({enfoque_ia[:8]})",
+                            "area": area_ia,
+                            "tema": tema_ia,
+                            "incidencia": "Prioridad A",
+                            "pregunta": item["pregunta"],
+                            "opcion_a": item["opcion_a"],
+                            "opcion_b": item["opcion_b"],
+                            "opcion_c": item["opcion_c"],
+                            "opcion_d": item["opcion_d"],
+                            "correcta": item["correcta"].upper(),
+                            "justificacion": item["justificacion"],
+                            "drive_link": "https://drive.google.com",
+                            "next_review": str(datetime.now().date()),
+                            "interval_days": 1,
+                            "ease_factor": 2.5,
+                            "repetitions": 0
+                        })
+                    
+                    updated_choices = pd.concat([choices_df, pd.DataFrame(new_rows)], ignore_index=True)
+                    save_sheet_data("choices", updated_choices)
 
-                    st.success(f"🎉 ¡Se generaron y guardaron {guardados} choices exitosamente en tu banco de preguntas!")
+                    st.success(f"🎉 ¡Se generaron y guardaron {len(new_rows)} choices en Google Sheets!")
                     for item in generated_list:
                         with st.expander(f"Caso Clínico Generado: {item['pregunta'][:80]}..."):
                             st.write(item['pregunta'])
@@ -583,112 +538,104 @@ elif menu == "✨ Generador de Choices con IA":
 elif menu == "📝 Banco de Choices & Simulacros":
     st.header("📝 Banco de Choices & Simulacros")
 
-    modo_practica = st.radio(
-        "Modalidad de Estudio:",
-        ["📚 Por Área Específica", "🎲 Simulacro Aleatorio (Cualquier Tema)"],
-        horizontal=True
-    )
-
-    conn = get_db_connection()
-    if modo_practica == "📚 Por Área Específica":
-        area_sel = st.selectbox("Seleccioná el Área Médica:", ["Tocoginecología", "Pediatría", "Clínica Médica", "Cirugía General", "Salud Pública y Leyes"])
-        choices_df = pd.read_sql("SELECT * FROM choices WHERE area = ?", conn, params=(area_sel,))
+    choices_df = get_sheet_data("choices")
+    if choices_df.empty:
+        st.warning("No hay choices cargados en Google Sheets. Podés generarlos con IA o cargar un CSV.")
     else:
-        choices_df = pd.read_sql("SELECT * FROM choices", conn)
-        choices_df = choices_df.sample(frac=1).reset_index(drop=True)
-    conn.close()
+        modo_practica = st.radio("Modalidad de Estudio:", ["📚 Por Área Específica", "🎲 Simulacro Aleatorio"], horizontal=True)
 
-    if len(choices_df) == 0:
-        st.warning("No se encontraron preguntas para los filtros seleccionados.")
-    else:
-        q_idx = st.selectbox(
-            "Seleccionar Pregunta a Resolver:",
-            range(len(choices_df)),
-            format_func=lambda x: f"P#{x+1}: {choices_df.iloc[x]['tema']} ({choices_df.iloc[x]['examen_origen']})"
-        )
-        q = choices_df.iloc[q_idx]
+        if modo_practica == "📚 Por Área Específica":
+            area_sel = st.selectbox("Seleccioná el Área Médica:", choices_df["area"].dropna().unique())
+            filtered_df = choices_df[choices_df["area"] == area_sel].reset_index(drop=True)
+        else:
+            filtered_df = choices_df.sample(frac=1).reset_index(drop=True)
 
-        st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}** - *{q['tema']}*")
-        st.write(f"### {q['pregunta']}")
+        if filtered_df.empty:
+            st.warning("No hay preguntas disponibles para esta selección.")
+        else:
+            q_idx = st.selectbox(
+                "Seleccionar Pregunta a Resolver:",
+                range(len(filtered_df)),
+                format_func=lambda x: f"P#{x+1}: {filtered_df.iloc[x]['tema']} ({filtered_df.iloc[x]['examen_origen']})"
+            )
+            q = filtered_df.iloc[q_idx]
 
-        opciones = [
-            f"A) {q['opcion_a']}",
-            f"B) {q['opcion_b']}",
-            f"C) {q['opcion_c']}",
-            f"D) {q['opcion_d']}"
-        ]
+            st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}** - *{q['tema']}*")
+            st.write(f"### {q['pregunta']}")
 
-        resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
-        flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
+            opciones = [
+                f"A) {q['opcion_a']}",
+                f"B) {q['opcion_b']}",
+                f"C) {q['opcion_c']}",
+                f"D) {q['opcion_d']}"
+            ]
 
-        if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
-            letra_elegida = resp_usr[0]
-            es_correcta = 1 if letra_elegida == q['correcta'] else 0
+            resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
+            flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
 
-            conn = get_db_connection()
-            c = conn.cursor()
-            c.execute('''
-                INSERT INTO error_log (username, choice_id, fecha, respuesta_dada, es_correcta, flag_duda, motivo_error, regla_oro)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (st.session_state.current_user, q['id'], datetime.now(), letra_elegida, es_correcta, 1 if flag_duda else 0, "", ""))
-            conn.commit()
-            conn.close()
+            if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
+                letra_elegida = resp_usr[0]
+                es_correcta = 1 if letra_elegida == q['correcta'] else 0
 
-            if es_correcta:
-                st.success(f"🎉 ¡CORRECTO! Opción {q['correcta']}")
-            else:
-                st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
+                error_df = get_sheet_data("error_log")
+                new_log = pd.DataFrame([{
+                    "id": random.randint(100000, 999999),
+                    "username": st.session_state.current_user,
+                    "choice_id": str(q['id']),
+                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "respuesta_dada": letra_elegida,
+                    "es_correcta": es_correcta,
+                    "flag_duda": 1 if flag_duda else 0,
+                    "motivo_error": "",
+                    "regla_oro": ""
+                }])
+                save_sheet_data("error_log", pd.concat([error_df, new_log], ignore_index=True))
 
-            st.info(f"**Fundamento Clínico:** {q['justificacion']}")
+                if es_correcta:
+                    st.success(f"🎉 ¡CORRECTO! Opción {q['correcta']}")
+                else:
+                    st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
+
+                st.info(f"**Fundamento Clínico:** {q['justificacion']}")
 
 # -------------------------------------------------------------
-# 6. CUADERNO DE ERRORES DEL USUARIO
+# 6. CUADERNO DE ERRORES
 # -------------------------------------------------------------
 elif menu == "📕 Cuaderno de Errores":
     st.header(f"📕 Libro de Errores | {st.session_state.user_name}")
-    st.caption("Solo se muestran las preguntas falladas o marcadas con duda en tu cuenta.")
 
-    conn = get_db_connection()
-    errores_df = pd.read_sql('''
-        SELECT e.id as log_id, e.fecha, e.respuesta_dada, e.es_correcta, e.flag_duda, e.motivo_error, e.regla_oro,
-               c.pregunta, c.correcta, c.justificacion, c.area, c.tema, c.examen_origen
-        FROM error_log e
-        JOIN choices c ON e.choice_id = c.id
-        WHERE e.username = ? AND (e.es_correcta = 0 OR e.flag_duda = 1)
-        ORDER BY e.fecha DESC
-    ''', conn, params=(st.session_state.current_user,))
-    conn.close()
+    error_df = get_sheet_data("error_log")
+    choices_df = get_sheet_data("choices")
 
-    if len(errores_df) == 0:
+    if not error_df.empty and not choices_df.empty:
+        user_errors = error_df[(error_df["username"] == st.session_state.current_user) & ((error_df["es_correcta"] == 0) | (error_df["flag_duda"] == 1))]
+        merged = user_errors.merge(choices_df, left_on="choice_id", right_on="id", suffixes=('_log', '_choice'))
+    else:
+        merged = pd.DataFrame()
+
+    if merged.empty:
         st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
     else:
-        st.info(f"Tenés **{len(errores_df)} preguntas registradas** para análisis.")
-        for idx, row in errores_df.iterrows():
-            with st.expander(f"❌ {row['area']} | {row['tema']} ({row['examen_origen']}) | Marcaste: {row['respuesta_dada']} | Correcta: {row['correcta']}"):
+        st.info(f"Tenés **{len(merged)} preguntas registradas** para análisis.")
+        for idx, row in merged.iterrows():
+            with st.expander(f"❌ {row['area']} | {row['tema']} ({row['examen_origen']}) | Tu opción: {row['respuesta_dada']} | Correcta: {row['correcta']}"):
                 st.write(f"**Enunciado:** {row['pregunta']}")
                 st.write(f"**Justificación:** {row['justificacion']}")
                 
-                motivo = st.selectbox(
-                    "¿Por qué fallaste?",
-                    ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis"],
-                    key=f"mot_{row['log_id']}"
-                )
-                regla = st.text_input("💡 Tu regla para evitarlo la próxima:", value=row['regla_oro'] if row['regla_oro'] else "", key=f"reg_{row['log_id']}")
+                motivo = st.selectbox("¿Por qué fallaste?", ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis"], key=f"mot_{row['id_log']}")
+                regla = st.text_input("💡 Tu regla para evitarlo la próxima:", value=str(row['regla_oro']) if pd.notna(row['regla_oro']) else "", key=f"reg_{row['id_log']}")
                 
-                if st.button("Guardar en mi Bitácora", key=f"save_b_{row['log_id']}"):
-                    conn = get_db_connection()
-                    c = conn.cursor()
-                    c.execute("UPDATE error_log SET motivo_error = ?, regla_oro = ? WHERE id = ?", (motivo, regla, row['log_id']))
-                    conn.commit()
-                    conn.close()
-                    st.success("Guardado en tu perfil.")
+                if st.button("Guardar en mi Bitácora", key=f"save_b_{row['id_log']}"):
+                    error_df.loc[error_df["id"] == row["id_log"], "motivo_error"] = motivo
+                    error_df.loc[error_df["id"] == row["id_log"], "regla_oro"] = regla
+                    save_sheet_data("error_log", error_df)
+                    st.success("Guardado en Google Sheets.")
 
 # -------------------------------------------------------------
 # 7. GUÍA COMPARATIVA AR VS BR
 # -------------------------------------------------------------
 elif menu == "⚖️ Guía Comparativa AR vs BR":
     st.header("⚖️ Matriz Comparativa Oficial: Argentina vs. Brasil")
-    st.caption("Diferencias normativas del Ministerio de Salud y del SUS.")
 
     comparativas = [
         {"Área": "Ginecología", "Tema": "Inicio de Citología (PAP)", "🇦🇷 Argentina": "A partir de los 25 años (FASGO 2024)", "🇧🇷 Brasil": "A partir de los 25 años / Foco en prueba molecular DNA-HPV"},
@@ -705,16 +652,16 @@ elif menu == "⚖️ Guía Comparativa AR vs BR":
 elif menu == "📊 Estadísticas de Rendimiento":
     st.header(f"📊 Estadísticas Personales | {st.session_state.user_name}")
 
-    conn = get_db_connection()
-    metrics_df = pd.read_sql('''
-        SELECT c.area, c.examen_origen, e.es_correcta
-        FROM error_log e
-        JOIN choices c ON e.choice_id = c.id
-        WHERE e.username = ?
-    ''', conn, params=(st.session_state.current_user,))
-    conn.close()
+    error_df = get_sheet_data("error_log")
+    choices_df = get_sheet_data("choices")
 
-    if len(metrics_df) == 0:
+    if not error_df.empty and not choices_df.empty:
+        user_logs = error_df[error_df["username"] == st.session_state.current_user]
+        metrics_df = user_logs.merge(choices_df, left_on="choice_id", right_on="id")
+    else:
+        metrics_df = pd.DataFrame()
+
+    if metrics_df.empty:
         st.info("Aún no tenés suficientes preguntas resueltas para generar gráficos.")
     else:
         c1, c2 = st.columns(2)
@@ -733,26 +680,15 @@ elif menu == "📊 Estadísticas de Rendimiento":
 # 9. CARGA DE EXÁMENES CSV
 # -------------------------------------------------------------
 elif menu == "⚙️ Cargar CSV / Exámenes":
-    st.header("⚙️ Importar Lotes de Preguntas CSV")
-    st.caption("Subí tu archivo de preguntas generado.")
-
+    st.header("⚙️ Importar Lotes de Preguntas a Google Sheets")
+    
     uploaded_csv = st.file_uploader("Subir archivo CSV", type=["csv"])
     if uploaded_csv is not None:
         df_up = pd.read_csv(uploaded_csv)
         st.write("Vista previa:")
         st.dataframe(df_up.head(3))
-        if st.button("Guardar en la Base de Datos"):
-            conn = get_db_connection()
-            c = conn.cursor()
-            for _, r in df_up.iterrows():
-                c.execute('''
-                    INSERT OR REPLACE INTO choices VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    str(r.get('id')), str(r.get('examen_origen')), str(r.get('area')), str(r.get('tema')),
-                    str(r.get('incidencia', 'Prioridad A')), str(r.get('pregunta')), str(r.get('opcion_a')),
-                    str(r.get('opcion_b')), str(r.get('opcion_c')), str(r.get('opcion_d')), str(r.get('correcta')),
-                    str(r.get('justificacion', '')), str(r.get('drive_link', '')), str(datetime.now().date()), 1, 2.5, 0
-                ))
-            conn.commit()
-            conn.close()
-            st.success(f"¡Se importaron {len(df_up)} preguntas exitosamente!")
+        if st.button("Guardar en Google Sheets"):
+            choices_df = get_sheet_data("choices")
+            updated = pd.concat([choices_df, df_up], ignore_index=True)
+            save_sheet_data("choices", updated)
+            st.success(f"¡Se agregaron {len(df_up)} preguntas a tu Google Sheet!")
