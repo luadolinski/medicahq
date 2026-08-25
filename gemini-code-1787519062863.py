@@ -428,7 +428,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             ```
             """, unsafe_allow_html=True)
             
-       if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
+        if st.button("✨ Generar Algoritmo Personalizado con IA sobre este tema"):
             if not model:
                 st.error("Error: Verificá que tu API Key de Gemini esté configurada correctamente en Secrets.")
             else:
