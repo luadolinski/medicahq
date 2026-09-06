@@ -19,7 +19,7 @@ except ImportError:
 # CONFIGURACIÓN DE PÁGINA
 # -------------------------------------------------------------
 st.set_page_config(
-    page_title="Médica HQ | Residencias & Revalida",
+    page_title="Super Médicos | Residencias & Revalida",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -218,7 +218,7 @@ if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
 def login_form():
-    st.title("🩺 Médica HQ | Ingreso a la Plataforma")
+    st.title("🩺 Super Médicos | Ingreso a la Plataforma")
     st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
     
     col1, col2 = st.columns([1, 1])
