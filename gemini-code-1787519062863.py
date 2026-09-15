@@ -635,7 +635,7 @@ elif menu == "✨ Generador de Choices con IA":
                     st.error(f"Error procesando la respuesta de la IA: {e}")
 
 # -------------------------------------------------------------
-# 5. BANCO DE CHOICES & SIMULACROS (MODO CIEGO - SIN SPOILERS)
+# 5. BANCO DE CHOICES & SIMULACROS (FILTRO PAÍS + MODO CIEGO)
 # -------------------------------------------------------------
 elif menu == "📝 Banco de Choices & Simulacros":
     st.header("📝 Banco de Choices & Simulacros")
@@ -644,66 +644,81 @@ elif menu == "📝 Banco de Choices & Simulacros":
     if choices_df.empty:
         st.warning("No hay choices cargados en Google Sheets. Podés generarlos con IA o cargar un CSV.")
     else:
-        modo_practica = st.radio("Modalidad de Estudio:", ["📚 Por Área Específica", "🎲 Simulacro Aleatorio"], horizontal=True)
+        # 1. Filtro inteligente según el país elegido en la barra lateral
+        df_activa = choices_df.copy()
+        
+        if filtro_pais == "🇦🇷 Solo Argentina":
+            # Filtra exámenes argentinos (Examen Único, ERES, CABA, etc.)
+            patron_ar = "unico|único|caba|eres|argentina"
+            df_activa = df_activa[df_activa["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
+        elif filtro_pais == "🇧🇷 Solo Brasil":
+            # Filtra exámenes brasileños (Revalida, ENAMED, INEP, etc.)
+            patron_br = "revalida|enamed|inep|brasil|sus"
+            df_activa = df_activa[df_activa["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
-        if modo_practica == "📚 Por Área Específica":
-            areas_disponibles = sorted(list(choices_df["area"].dropna().unique()))
-            area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
-            filtered_df = choices_df[choices_df["area"] == area_sel].reset_index(drop=True)
+        if df_activa.empty:
+            st.warning(f"No hay preguntas cargadas que coincidan con el filtro '{filtro_pais}'. Podés cambiar a 'Modo Dual' en la barra lateral.")
         else:
-            filtered_df = choices_df.sample(frac=1, random_state=42).reset_index(drop=True)
+            modo_practica = st.radio("Modalidad de Estudio:", ["📚 Por Área Específica", "🎲 Simulacro Aleatorio"], horizontal=True)
 
-        if filtered_df.empty:
-            st.warning("No hay preguntas disponibles para esta selección.")
-        else:
-            # 1. En el desplegable: SOLO número y examen de origen (sin tema)
-            q_idx = st.selectbox(
-                "Seleccionar Pregunta a Resolver:",
-                range(len(filtered_df)),
-                format_func=lambda x: f"Pregunta #{x+1} — {filtered_df.iloc[x]['examen_origen']}"
-            )
-            q = filtered_df.iloc[q_idx]
+            if modo_practica == "📚 Por Área Específica":
+                areas_disponibles = sorted(list(df_activa["area"].dropna().unique()))
+                area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
+                filtered_df = df_activa[df_activa["area"] == area_sel].reset_index(drop=True)
+            else:
+                filtered_df = df_activa.sample(frac=1, random_state=42).reset_index(drop=True)
 
-            # 2. En el encabezado: SOLO examen y especialidad (se eliminó el tema)
-            st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}**")
-            st.write(f"### {q['pregunta']}")
+            if filtered_df.empty:
+                st.warning("No hay preguntas disponibles para esta selección.")
+            else:
+                # Selector ciego: solo número y origen
+                q_idx = st.selectbox(
+                    "Seleccionar Pregunta a Resolver:",
+                    range(len(filtered_df)),
+                    format_func=lambda x: f"Pregunta #{x+1} — {filtered_df.iloc[x]['examen_origen']}"
+                )
+                q = filtered_df.iloc[q_idx]
 
-            opciones = [
-                f"A) {q['opcion_a']}",
-                f"B) {q['opcion_b']}",
-                f"C) {q['opcion_c']}",
-                f"D) {q['opcion_d']}"
-            ]
+                # Encabezado sin tema
+                st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}**")
+                st.write(f"### {q['pregunta']}")
 
-            resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
-            flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
+                opciones = [
+                    f"A) {q['opcion_a']}",
+                    f"B) {q['opcion_b']}",
+                    f"C) {q['opcion_c']}",
+                    f"D) {q['opcion_d']}"
+                ]
 
-            if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
-                letra_elegida = resp_usr[0]
-                es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
+                resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
+                flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
 
-                error_df = get_sheet_data("error_log")
-                new_log = pd.DataFrame([{
-                    "id": random.randint(100000, 999999),
-                    "username": st.session_state.current_user,
-                    "choice_id": str(q['id']),
-                    "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "respuesta_dada": letra_elegida,
-                    "es_correcta": es_correcta,
-                    "flag_duda": 1 if flag_duda else 0,
-                    "motivo_error": "",
-                    "regla_oro": ""
-                }])
-                save_sheet_data("error_log", pd.concat([error_df, new_log], ignore_index=True))
+                if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
+                    letra_elegida = resp_usr[0]
+                    es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
 
-                if es_correcta:
-                    st.success(f"🎉 ¡CORRECTO! Opción {q['correcta']}")
-                else:
-                    st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
+                    error_df = get_sheet_data("error_log")
+                    new_log = pd.DataFrame([{
+                        "id": random.randint(100000, 999999),
+                        "username": st.session_state.current_user,
+                        "choice_id": str(q['id']),
+                        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "respuesta_dada": letra_elegida,
+                        "es_correcta": es_correcta,
+                        "flag_duda": 1 if flag_duda else 0,
+                        "motivo_error": "",
+                        "regla_oro": ""
+                    }])
+                    save_sheet_data("error_log", pd.concat([error_df, new_log], ignore_index=True))
 
-                # 3. El tema aparece RECIÉN ACÁ, cuando ya respondiste
-                st.markdown(f"📌 **Tema evaluado:** *{q['tema']}*")
-                st.info(f"**Fundamento Clínico:** {q['justificacion']}")
+                    if es_correcta:
+                        st.success(f"🎉 ¡CORRECTO! Opción {q['correcta']}")
+                    else:
+                        st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
+
+                    # Revelación posterior del tema evaluado
+                    st.markdown(f"📌 **Tema evaluado:** *{q['tema']}*")
+                    st.info(f"**Fundamento Clínico:** {q['justificacion']}")
 
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES
