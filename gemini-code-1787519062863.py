@@ -218,7 +218,7 @@ if "current_user" not in st.session_state:
     st.session_state.current_user = None
 
 def login_form():
-    st.title("🩺 Super Médicos | Ingreso a la Plataforma")
+    st.title("🩺 Médica HQ | Ingreso a la Plataforma")
     st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
     
     col1, col2 = st.columns([1, 1])
