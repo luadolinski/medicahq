@@ -635,7 +635,7 @@ elif menu == "✨ Generador de Choices con IA":
                     st.error(f"Error procesando la respuesta de la IA: {e}")
 
 # -------------------------------------------------------------
-# 5. BANCO DE CHOICES & SIMULACROS
+# 5. BANCO DE CHOICES & SIMULACROS (MODO CIEGO - SIN SPOILERS)
 # -------------------------------------------------------------
 elif menu == "📝 Banco de Choices & Simulacros":
     st.header("📝 Banco de Choices & Simulacros")
@@ -651,19 +651,21 @@ elif menu == "📝 Banco de Choices & Simulacros":
             area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
             filtered_df = choices_df[choices_df["area"] == area_sel].reset_index(drop=True)
         else:
-            filtered_df = choices_df.sample(frac=1).reset_index(drop=True)
+            filtered_df = choices_df.sample(frac=1, random_state=42).reset_index(drop=True)
 
         if filtered_df.empty:
             st.warning("No hay preguntas disponibles para esta selección.")
         else:
+            # 1. En el desplegable: SOLO número y examen de origen (sin tema)
             q_idx = st.selectbox(
                 "Seleccionar Pregunta a Resolver:",
                 range(len(filtered_df)),
-                format_func=lambda x: f"P#{x+1}: {filtered_df.iloc[x]['tema']} ({filtered_df.iloc[x]['examen_origen']})"
+                format_func=lambda x: f"Pregunta #{x+1} — {filtered_df.iloc[x]['examen_origen']}"
             )
             q = filtered_df.iloc[q_idx]
 
-            st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}** - *{q['tema']}*")
+            # 2. En el encabezado: SOLO examen y especialidad (se eliminó el tema)
+            st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}**")
             st.write(f"### {q['pregunta']}")
 
             opciones = [
@@ -678,7 +680,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
 
             if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
                 letra_elegida = resp_usr[0]
-                es_correcta = 1 if letra_elegida == q['correcta'] else 0
+                es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
 
                 error_df = get_sheet_data("error_log")
                 new_log = pd.DataFrame([{
@@ -699,6 +701,8 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 else:
                     st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
 
+                # 3. El tema aparece RECIÉN ACÁ, cuando ya respondiste
+                st.markdown(f"📌 **Tema evaluado:** *{q['tema']}*")
                 st.info(f"**Fundamento Clínico:** {q['justificacion']}")
 
 # -------------------------------------------------------------
