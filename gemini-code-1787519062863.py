@@ -350,15 +350,87 @@ if menu == "🏠 Dashboard & Repaso SRS":
                     st.write(row['justificacion'])
 
 # -------------------------------------------------------------
-# 2. CRONOGRAMA SEMANAL DETALLADO
+# 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
 # -------------------------------------------------------------
 elif menu == "📅 Cronograma Semanal Detallado":
-    st.header("📅 Cronograma Completo y Exhaustivo (Semanas 1 a 20)")
-    st.caption("Planificación estructurada de 1 a 2 horas diarias de lunes a viernes.")
+    st.header("📅 Cronograma Interactivo de Estudio (Semanas 1 a 20)")
+    st.caption("Marcá los temas a medida que los completes para registrar tu avance real.")
 
-    sem_select = st.selectbox("Seleccioná la semana a visualizar en detalle:", list(cronograma_desglosado.keys()))
-    df_sem = pd.DataFrame(cronograma_desglosado[sem_select])
-    st.dataframe(df_sem, use_container_width=True, hide_index=True)
+    # Cargar o inicializar la tabla de progresos
+    progreso_df = get_sheet_data("progreso_temas")
+    if progreso_df.empty or "username" not in progreso_df.columns:
+        progreso_df = pd.DataFrame(columns=["username", "semana", "dia", "completado"])
+
+    # Filtrar temas completados por el usuario activo
+    user_prog = progreso_df[progreso_df["username"].astype(str) == st.session_state.current_user]
+    completados_set = set(zip(user_prog["semana"].astype(str), user_prog["dia"].astype(str)))
+
+    # Métricas globales de avance
+    total_dias_plan = sum(len(dias) for dias in cronograma_desglosado.values())
+    total_hechos_usr = len(user_prog)
+    pct_global = int((total_hechos_usr / total_dias_plan) * 100) if total_dias_plan > 0 else 0
+
+    col_p1, col_p2 = st.columns([3, 1])
+    with col_p1:
+        st.progress(pct_global / 100)
+    with col_p2:
+        st.metric("🎯 Progreso Global", f"{pct_global}%", f"{total_hechos_usr}/{total_dias_plan} días")
+
+    st.markdown("---")
+
+    # Selector de Semana
+    sem_select = st.selectbox("Seleccioná la semana a visualizar:", list(cronograma_desglosado.keys()))
+    dias_semana = cronograma_desglosado[sem_select]
+
+    # Contador de la semana seleccionada
+    hechos_esta_semana = sum(1 for item in dias_semana if (sem_select, item["Día"]) in completados_set)
+    st.info(f"Avance de esta semana: **{hechos_esta_semana} de {len(dias_semana)} temas completados**.")
+
+    # Lista de temas con checkbox interactivo
+    hubo_cambios = False
+    for item in dias_semana:
+        dia_nombre = item["Día"]
+        tema_desc = item["Tema Específico"]
+        clave_tupla = (sem_select, dia_nombre)
+        esta_marcado = clave_tupla in completados_set
+
+        c_check, c_desc = st.columns([1, 8])
+        with c_check:
+            nuevo_estado = st.checkbox(
+                f"**{dia_nombre}**",
+                value=esta_marcado,
+                key=f"chk_{sem_select}_{dia_nombre}"
+            )
+        with c_desc:
+            if nuevo_estado:
+                st.markdown(f"~~{tema_desc}~~ ✅ *(Completado)*")
+            else:
+                st.markdown(f"{tema_desc}")
+
+        # Si el usuario cambió el estado del checkbox
+        if nuevo_estado != esta_marcado:
+            hubo_cambios = True
+            if nuevo_estado:
+                # Agregar registro
+                nueva_fila = pd.DataFrame([{
+                    "username": st.session_state.current_user,
+                    "semana": sem_select,
+                    "dia": dia_nombre,
+                    "completado": 1
+                }])
+                progreso_df = pd.concat([progreso_df, nueva_fila], ignore_index=True)
+            else:
+                # Quitar registro
+                progreso_df = progreso_df[~(
+                    (progreso_df["username"].astype(str) == st.session_state.current_user) &
+                    (progreso_df["semana"].astype(str) == sem_select) &
+                    (progreso_df["dia"].astype(str) == dia_nombre)
+                )]
+
+    if hubo_cambios:
+        save_sheet_data("progreso_temas", progreso_df)
+        st.success("¡Progreso actualizado y guardado en Google Sheets!")
+        st.rerun()
 
 # -------------------------------------------------------------
 # 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
