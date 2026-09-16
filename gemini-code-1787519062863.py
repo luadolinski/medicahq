@@ -301,19 +301,25 @@ menu = st.sidebar.radio(
 )
 
 # -------------------------------------------------------------
-# 1. DASHBOARD & REPASO SRS
+# 1. DASHBOARD & REPASO ESPACIADO INTELIGENTE (SIN SATURACIÓN)
 # -------------------------------------------------------------
-if menu == "🏠 Dashboard & Repaso SRS":
+elif menu == "🏠 Dashboard & Repaso SRS":
     st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
     
+    # 1. Cargar métricas del usuario
     error_df = get_sheet_data("error_log")
     if not error_df.empty and "username" in error_df.columns:
         user_logs = error_df[error_df["username"].astype(str) == st.session_state.current_user]
         total_hechas = len(user_logs)
         total_correctas = len(user_logs[user_logs["es_correcta"] == 1])
+        # Conjunto de IDs de preguntas que el usuario ya respondió
+        hechas_ids = set(user_logs["choice_id"].astype(str))
+        errores_ids = set(user_logs[user_logs["es_correcta"] == 0]["choice_id"].astype(str))
     else:
         total_hechas = 0
         total_correctas = 0
+        hechas_ids = set()
+        errores_ids = set()
 
     precision = int((total_correctas / total_hechas * 100)) if total_hechas > 0 else 0
 
@@ -321,34 +327,109 @@ if menu == "🏠 Dashboard & Repaso SRS":
     col1.metric("🔥 Racha Activa", "14 Días")
     col2.metric("🎯 Precisión Personal", f"{precision}%")
     col3.metric("📝 Choices Realizados", str(total_hechas))
-    col4.metric("📅 Estado de Meta", "Semana 1 / Tocogineco")
+    col4.metric("📅 Enfoque Actual", "Semana Activa")
 
     st.markdown("---")
-    st.subheader("🧠 Repaso Espaciado Programado para Hoy")
-    
-    today = str(datetime.now().date())
+    st.subheader("🧠 Repaso Focalizado del Día")
+
     choices_df = get_sheet_data("choices")
-    
-    if not choices_df.empty and "next_review" in choices_df.columns:
-        due_choices = choices_df[choices_df["next_review"].astype(str) <= today]
+    if choices_df.empty:
+        st.info("No hay choices en la base de datos.")
     else:
-        due_choices = pd.DataFrame()
+        # 2. Selector de Semana para alinear al cronograma
+        c_sem, c_cant = st.columns([3, 1])
+        with c_sem:
+            semana_activa = st.selectbox(
+                "Seleccioná la semana del cronograma para tu repaso de hoy:",
+                list(cronograma_desglosado.keys()),
+                index=0
+            )
+        with c_cant:
+            dosis_diaria = st.slider("Límite diario de choices:", min_value=5, max_value=30, value=10, step=5)
 
-    if len(due_choices) == 0:
-        st.success("🎉 ¡Estás al día! No tenés preguntas pendientes de la curva del olvido.")
-    else:
-        st.info(f"Tenés **{len(due_choices)} choices** listos para consolidar memoria de largo plazo.")
-        for idx, row in due_choices.iterrows():
-            with st.expander(f"📌 {row['area']} | {row['tema']} ({row['examen_origen']})"):
-                st.write(f"**{row['pregunta']}**")
-                st.write(f"A) {row['opcion_a']}")
-                st.write(f"B) {row['opcion_b']}")
-                st.write(f"C) {row['opcion_c']}")
-                st.write(f"D) {row['opcion_d']}")
-                if st.button("Ver Respuesta Oficial", key=f"srs_btn_{row['id']}"):
-                    st.success(f"**Opción Correcta: {row['correcta']}**")
-                    st.write(row['justificacion'])
+        # 3. Detectar qué área corresponde a la semana elegida
+        area_sugerida = ""
+        sem_str = semana_activa.lower()
+        if "tocoginecología" in sem_str or "toco" in sem_str:
+            area_sugerida = "Tocoginecología"
+        elif "pediatría" in sem_str:
+            area_sugerida = "Pediatría"
+        elif "clínica médica" in sem_str or "clinica" in sem_str:
+            area_sugerida = "Clínica Médica"
+        elif "cirugía" in sem_str:
+            area_sugerida = "Cirugía General"
+        elif "salud pública" in sem_str:
+            area_sugerida = "Salud Pública y Leyes"
 
+        # 4. Filtrar por Área y Enfoque de Examen (AR / BR / Dual)
+        df_disponible = choices_df.copy()
+
+        if filtro_pais == "🇦🇷 Solo Argentina":
+            patron_ar = "unico|único|caba|eres|argentina"
+            df_disponible = df_disponible[df_disponible["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
+        elif filtro_pais == "🇧🇷 Solo Brasil":
+            patron_br = "revalida|enamed|inep|brasil|sus"
+            df_disponible = df_disponible[df_disponible["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
+
+        if area_sugerida:
+            df_semana = df_disponible[df_disponible["area"].astype(str).str.contains(area_sugerida, case=False, na=False)]
+        else:
+            df_semana = df_disponible
+
+        if df_semana.empty:
+            df_semana = df_disponible  # Respaldo si no hay preguntas con ese nombre exacto
+
+        # 5. Priorización inteligente de la dosis diaria:
+        # Prioridad 1: Preguntas que antes tuviste mal (errores a reforzar)
+        # Prioridad 2: Preguntas no hechas todavía del tema
+        choices_errores = df_semana[df_semana["id"].astype(str).isin(errores_ids)]
+        choices_nuevos = df_semana[~df_semana["id"].astype(str).isin(hechas_ids)]
+        choices_resto = df_semana
+
+        lista_priorizada = pd.concat([choices_errores, choices_nuevos, choices_resto]).drop_duplicates(subset=["id"])
+        choices_hoy = lista_priorizada.head(dosis_diaria).reset_index(drop=True)
+
+        st.info(f"📚 Sesión configurada: **{len(choices_hoy)} choices seleccionados** de **{area_sugerida if area_sugerida else 'Área General'}**.")
+
+        # 6. Mostrar las preguntas en modo examen (sin spoiler de tema)
+        for idx, row in choices_hoy.iterrows():
+            with st.expander(f"📌 Pregunta #{idx+1} — {row['examen_origen']} | {row['area']}"):
+                st.write(f"### {row['pregunta']}")
+                st.write(f"**A)** {row['opcion_a']}")
+                st.write(f"**B)** {row['opcion_b']}")
+                st.write(f"**C)** {row['opcion_c']}")
+                st.write(f"**D)** {row['opcion_d']}")
+
+                resp_srs = st.radio(
+                    f"Tu respuesta para P#{idx+1}:",
+                    ["A", "B", "C", "D"],
+                    key=f"srs_opt_{row['id']}_{idx}"
+                )
+
+                if st.button("Confirmar Respuesta", key=f"srs_btn_{row['id']}_{idx}"):
+                    es_corr = 1 if resp_srs == str(row['correcta']).strip().upper() else 0
+                    
+                    # Registrar en error_log
+                    new_log = pd.DataFrame([{
+                        "id": random.randint(100000, 999999),
+                        "username": st.session_state.current_user,
+                        "choice_id": str(row['id']),
+                        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "respuesta_dada": resp_srs,
+                        "es_correcta": es_corr,
+                        "flag_duda": 0,
+                        "motivo_error": "",
+                        "regla_oro": ""
+                    }])
+                    save_sheet_data("error_log", pd.concat([error_df, new_log], ignore_index=True))
+
+                    if es_corr:
+                        st.success(f"🎉 ¡CORRECTO! Opción {row['correcta']}")
+                    else:
+                        st.error(f"❌ INCORRECTO. La respuesta oficial era: {row['correcta']}")
+
+                    st.markdown(f"🏷️ **Tema evaluado:** *{row['tema']}*")
+                    st.info(f"**Fundamento:** {row['justificacion']}")
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
 # -------------------------------------------------------------
