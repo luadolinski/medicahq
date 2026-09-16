@@ -56,12 +56,62 @@ def get_sheet_data(worksheet_name):
     except Exception:
         return pd.DataFrame()
 
-def save_sheet_data(worksheet_name, df):
-    try:
-        conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
-        st.cache_data.clear() # Limpia la caché para que los datos nuevos se vean al instante
-    except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}")
+def calcular_racha_activa(username, error_df, progreso_df):
+    """Calcula los días consecutivos de actividad para un usuario."""
+    fechas_actividad = set()
+    
+    # 1. Fechas de choices respondidos
+    if not error_df.empty and "username" in error_df.columns and "fecha" in error_df.columns:
+        user_err = error_df[error_df["username"].astype(str) == username]
+        for f in user_err["fecha"].dropna():
+            try:
+                # Extrae la parte YYYY-MM-DD
+                fechas_actividad.add(str(f)[:10])
+            except Exception:
+                pass
+
+    # 2. Fechas de temas marcados en el cronograma (si hay registros)
+    if not progreso_df.empty and "username" in progreso_df.columns:
+        user_prog = progreso_df[progreso_df["username"].astype(str) == username]
+        if "fecha" in user_prog.columns:
+            for f in user_prog["fecha"].dropna():
+                try:
+                    fechas_actividad.add(str(f)[:10])
+                except Exception:
+                    pass
+
+    if not fechas_actividad:
+        return 0
+
+    # Fechas únicas ordenadas como objetos date
+    fechas_validas = []
+    for f_str in fechas_actividad:
+        try:
+            fechas_validas.append(datetime.strptime(f_str.strip(), "%Y-%m-%d").date())
+        except Exception:
+            pass
+
+    if not fechas_validas:
+        return 0
+
+    fechas_set = set(fechas_validas)
+    hoy = datetime.now().date()
+    ayer = hoy - timedelta(days=1)
+
+    # Si hubo actividad hoy, arrancamos desde hoy; si no, desde ayer (si hubo)
+    if hoy in fechas_set:
+        cursor = hoy
+    elif ayer in fechas_set:
+        cursor = ayer
+    else:
+        return 0  # Se rompió la racha
+
+    racha = 0
+    while cursor in fechas_set:
+        racha += 1
+        cursor -= timedelta(days=1)
+
+    return racha
         
 # -------------------------------------------------------------
 # CRONOGRAMA GLOBAL (SEMANAS 1 A 20)
@@ -306,13 +356,14 @@ menu = st.sidebar.radio(
 if menu == "🏠 Dashboard & Repaso SRS":
     st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
     
-    # 1. Cargar métricas del usuario
+    # Cargar datos para métricas
     error_df = get_sheet_data("error_log")
+    progreso_df = get_sheet_data("progreso_temas")
+
     if not error_df.empty and "username" in error_df.columns:
         user_logs = error_df[error_df["username"].astype(str) == st.session_state.current_user]
         total_hechas = len(user_logs)
         total_correctas = len(user_logs[user_logs["es_correcta"] == 1])
-        # Conjunto de IDs de preguntas que el usuario ya respondió
         hechas_ids = set(user_logs["choice_id"].astype(str))
         errores_ids = set(user_logs[user_logs["es_correcta"] == 0]["choice_id"].astype(str))
     else:
@@ -322,9 +373,13 @@ if menu == "🏠 Dashboard & Repaso SRS":
         errores_ids = set()
 
     precision = int((total_correctas / total_hechas * 100)) if total_hechas > 0 else 0
+    
+    # Cálculo de la Racha Real
+    racha_actual = calcular_racha_activa(st.session_state.current_user, error_df, progreso_df)
+    texto_racha = f"{racha_actual} Días" if racha_actual != 1 else "1 Día"
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("🔥 Racha Activa", "14 Días")
+    col1.metric("🔥 Racha Activa", texto_racha)
     col2.metric("🎯 Precisión Personal", f"{precision}%")
     col3.metric("📝 Choices Realizados", str(total_hechas))
     col4.metric("📅 Enfoque Actual", "Semana Activa")
