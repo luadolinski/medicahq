@@ -303,7 +303,7 @@ menu = st.sidebar.radio(
 # -------------------------------------------------------------
 # 1. DASHBOARD & REPASO ESPACIADO INTELIGENTE (SIN SATURACIÓN)
 # -------------------------------------------------------------
-elif menu == "🏠 Dashboard & Repaso SRS":
+if menu == "🏠 Dashboard & Repaso SRS":
     st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
     
     # 1. Cargar métricas del usuario
