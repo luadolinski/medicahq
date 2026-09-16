@@ -56,6 +56,13 @@ def get_sheet_data(worksheet_name):
     except Exception:
         return pd.DataFrame()
 
+def save_sheet_data(worksheet_name, df):
+    try:
+        conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"Error al guardar en Google Sheets: {e}")
+
 def calcular_racha_activa(username, error_df, progreso_df):
     """Calcula los días consecutivos de actividad para un usuario."""
     fechas_actividad = set()
