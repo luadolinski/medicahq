@@ -124,145 +124,224 @@ def calcular_racha_activa(username, error_df, progreso_df):
 # CRONOGRAMA GLOBAL (SEMANAS 1 A 20)
 # -------------------------------------------------------------
 cronograma_desglosado = {
-    "Semana 1 (Tocoginecología: Trastornos Hipertensivos)": [
-        {"Día": "Lunes", "Tema Específico": "Preeclampsia sin Criterios de Severidad: Criterios diagnósticos, metas de TA, seguimiento ambulatorio y criterios de internación."},
-        {"Día": "Martes", "Tema Específico": "Preeclampsia con Criterios de Severidad: Criterios clínicos y de laboratorio. Protocolos de Labetalol / Hidralazina EV + Esquema de Sulfato de Magnesio (Zuspan/Sibai)."},
-        {"Día": "Miércoles", "Tema Específico": "Eclampsia y Síndrome HELLP: Diagnóstico de laboratorio diferencial, complicaciones materno-fetales y manejo de urgencia en guardia."},
-        {"Día": "Jueves", "Tema Específico": "Hipertensión Crónica y Preeclampsia Sobreimpuesta: Manejo farmacológico ambulatorio (Alfametildopa vs Labetalol) y Guías MSAL 2024 vs APS Brasil."},
-        {"Día": "Viernes", "Tema Específico": "Repaso Integrador de Hipertensión en el Embarazo + Batería de 20 choices de exámenes oficiales."}
+# -------------------------------------------------------------
+# CRONOGRAMA MAESTRO DE ESTUDIO (20 SEMANAS ESTRUCTURADAS)
+# -------------------------------------------------------------
+cronograma_desglosado = {
+    # =========================================================
+    # MÓDULO I: TOCOGINECOLOGÍA (SEMANAS 1 A 4)
+    # =========================================================
+    "Semana 1: Ginecología Pura": [
+        {"Día": "Lunes", "Tema Específico": "Infecciones Cervicovaginales y EPI: Vulvovaginitis (Amsel en Vaginosis vs Candidiasis vs Tricomoniasis), Cervicitis mucopurulenta (Gonococo + Clamidia) y EPI (Monif, indicación ambulatoria Ceftriaxona + Doxiciclina + Metronidazol vs hospitalaria)."},
+        {"Día": "Martes", "Tema Específico": "Patología Cervical y Tamizaje: Citología Bethesda (ASC-US, LSIL, HSIL), algoritmos de colposcopía y conización (CAF/cono frío). Consenso FASGO: PAP desde los 25 años (1 anual, luego de 2 negativos cada 3 años hasta los 65)."},
+        {"Día": "Miércoles", "Tema Específico": "Endocrinología Ginecológica: Sangrado Uterino Anormal (FIGO PALM-COEIN: pólipos, miomas submucosos, adenomiosis) y Síndrome de Ovario Poliquístico (criterios de Rotterdam, resistencia insulínica, manejo)."},
+        {"Día": "Jueves", "Tema Específico": "Patología Mamaria y Cáncer Ginecológico: Nódulo mamario (fibroadenoma vs quiste), BI-RADS, tamizaje de mama (anual a los 40 en Argentina vs bienal 50-74 en Brasil). Cáncer de Endometrio (grosor eco postmenopausia: ≥4 mm sin TRH / ≥8 mm con TRH) y Cáncer de Ovario/Tumores anexiales."},
+        {"Día": "Viernes", "Tema Específico": "Amenorreas y Climaterio: Primarias (algoritmo Rokitansky 46,XX con vello vs Morris 46,XY sin vello vs Turner 45,X0) y secundarias (prueba de progesterona). Climaterio y Terapia Hormonal (indicaciones, contraindicaciones y vía transdérmica) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Bloque masivo de 70 choices oficiales de Ginecología (INEP + Examen Único/CABA)."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: SUS Brasil (Leyes 8.080 y 8.142: principios doctrinarios, organizativos y participación comunitaria) + Cuaderno de Errores."}
     ],
-    "Semana 2 (Tocoginecología: Hemorragias y Salud Sexual)": [
-        {"Día": "Lunes", "Tema Específico": "Hemorragias de la 1ª Mitad: Aborto (amenaza, incompleto, diferido, séptico) y Embarazo Ectópico (criterios de Metotrexato vs Quirúrgico)."},
-        {"Día": "Martes", "Tema Específico": "Hemorragias de la 2ª Mitad: DPPNI vs Placenta Previa vs Rotura Uterina y Vasa Previa. Diagnóstico diferencial y conducta."},
-        {"Día": "Miércoles", "Tema Específico": "Interrupción Voluntaria y Legal del Embarazo (IVE/ILE): Marco legal (Ley 27.610), plazos, esquemas de Misoprostol / Mifepristona y objeción de conciencia."},
-        {"Día": "Jueves", "Tema Específico": "Anticoncepción: Criterios Médicos de Elegibilidad OMS en puerperio y lactancia, Anticoncepción Hormonal de Emergencia y colocación de DIU/SIU."},
-        {"Día": "Viernes", "Tema Específico": "Hemorragia Postparto (Atonía Uterina) y manejo con uterotónicos + Batería semanal de choices."}
+
+    "Semana 2: Obstetricia Pura – Primera Mitad y Urgencias": [
+        {"Día": "Lunes", "Tema Específico": "Trastornos Hipertensivos del Embarazo I: Preeclampsia con/sin severidad: diagnóstico, metas TA y conductas. Manejo farmacológico agudo (Labetalol EV, Hidralazina EV) y prevención de eclampsia (Sulfato de Magnesio: Zuspan/Sibai, intoxicación y Gluconato de Calcio)."},
+        {"Día": "Martes", "Tema Específico": "Trastornos Hipertensivos del Embarazo II: Eclampsia, Síndrome HELLP (laboratorio de microangiopatía, plaquetas, enzimas hepáticas) e Hipertensión Crónica / Preeclampsia sobreimpuesta (Guía HTA MSAL)."},
+        {"Día": "Miércoles", "Tema Específico": "Hemorragias 1ª Mitad e Infecciones: Aborto (amenaza, incompleto, diferido, séptico; legrado vs AMEU), Embarazo Ectópico (metotrexato vs laparoscopía) y Mola hidatidiforme (completa vs parcial). Herpes Genital (profilaxis Aciclovir sem 36; cesárea si hay vesículas activas)."},
+        {"Día": "Jueves", "Tema Específico": "Infecciones Perinatales y Control Prenatal: Sífilis Gestacional (VDRL, penicilina benzatínica según estadio, tratamiento de la pareja), ITU gestacional (tratamiento obligado de Bacteriuria Asintomática) y Toxoplasmosis (IgG, IgM, avidez y espiramicina)."},
+        {"Día": "Viernes", "Tema Específico": "Complicaciones Médicas y Aloinmunización: Diabetes Gestacional (PTOG, metas glucémicas, insulina), Aloinmunización Rh (gammaglobulina anti-D a las 28 semanas y postparto) y Anemia gestacional + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Bloque de 70 choices oficiales de hipertensión gestacional, hemorragias tempranas e infecciones perinatales."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Leyes Argentinas (Ley 26.529 de Derechos del Paciente: autonomía, rechazo de tratamientos, consentimiento informado) + Cuaderno de Errores."}
     ],
-    "Semana 3 (Tocoginecología: Infecciones Perinatales y Control Prenatal)": [
-        {"Día": "Lunes", "Tema Específico": "Sífilis Gestacional y Congénita: Interpretación de VDRL vs pruebas treponémicas, tratamiento con Penicilina Benzatínica y manejo de la pareja."},
-        {"Día": "Martes", "Tema Específico": "Infección Urinaria en el Embarazo (Bacteriuria Asintomática, Cistitis, Pielonefritis) + Tamizaje de Estreptococo Grupo B (SGB)."},
-        {"Día": "Miércoles", "Tema Específico": "Infecciones TORCH: Toxoplasmosis gestacional (IgG/IgM/Avidez y Espiramicina), Chagas perinatal y Citomegalovirus."},
-        {"Día": "Jueves", "Tema Específico": "Rutina de Control Prenatal, Carné Perinatal, suplementación (Hierro/Ácido fólico) y Vacunas (VSR sem 32-36, dTPa y Antigripal)."},
-        {"Día": "Viernes", "Tema Específico": "Simulacro Semanal de Obstetricia e Infecciones Perinatales."}
+
+    "Semana 3: Obstetricia Pura – Segunda Mitad y Puerperio": [
+        {"Día": "Lunes", "Tema Específico": "Hemorragias de la Segunda Mitad: Diagnóstico diferencial clínico y ecográfico: Desprendimiento Prematuro de Placenta (DPPNI: hipertonía, Couvelaire) vs Placenta Previa (sangrado indoloro, rojo rutilante, no tacto) vs Rotura Uterina vs Rotura de Vasa Previa."},
+        {"Día": "Martes", "Tema Específico": "Amenaza de Parto Prematuro y RPMO: RPMO (manejo conservador vs activo y latencia), Corioamnionitis (criterios de Gibbs) y Parto Prematuro (tocólisis nifedipina, maduración betametasona y neuroprotección con Sulfato de Magnesio <32 sem)."},
+        {"Día": "Miércoles", "Tema Específico": "Trabajo de Parto y Partograma: Fisiología, periodos clínicos, partograma y distocias (fase activa prolongada, detención secundaria, expulsivo prolongado). Ley 25.929 de Parto Humanizado."},
+        {"Día": "Jueves", "Tema Específico": "Hemorragia Puerperal e Infección: Manejo de las 4T (tono, trauma, tejido, trombina; masaje, oxitocina, ergometrina, misoprostol, tranexámico, balón de compresión) y Endometritis (Clindamicina + Gentamicina). Tamizaje HTLV-1/2 (contraindicación absoluta de lactancia)."},
+        {"Día": "Viernes", "Tema Específico": "Repaso de Obstetricia: Estática fetal, indicaciones de cesárea y profilaxis de Streptococcus agalactiae intraparto (Penicilina EV) + 25 choices oficiales de obstetricia tardía."},
+        {"Día": "Sábado", "Tema Específico": "Bloque masivo de 70 choices oficiales de hemorragias del 3º trimestre, distocias y puerperio."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: SUS Brasil (Niveles de Atención y Tuberculosis/TDO) + Cuaderno de Errores."}
     ],
-    "Semana 4 (Tocoginecología: Ginecología y Patología Cervical/Mamaria)": [
-        {"Día": "Lunes", "Tema Específico": "Patología Cervical: Tamizaje con Papanicolaou y test DNA-VPH (Consenso FASGO 2024 vs Directrices MS Brasil), colposcopía y manejo de LSIL/HSIL."},
-        {"Día": "Martes", "Tema Específico": "Infecciones del Tracto Genital Inferior: Vaginosis bacteriana, Candidiasis, Tricomoniasis y Enfermedad Pélvica Inflamatoria (EPI)."},
-        {"Día": "Miércoles", "Tema Específico": "Patología Mamaria: Nódulos mamarios benignos, mastalgia, categorización BI-RADS mamográfico y tamizaje de cáncer de mama."},
-        {"Día": "Jueves", "Tema Específico": "Endocrinología Ginecológica: Sangrado Uterino Anormal (PALM-COEIN), Síndrome de Ovario Poliquístico (Rotterdam) y Climaterio."},
-        {"Día": "Viernes", "Tema Específico": "Atención a Víctimas de Violencia Sexual (Profilaxis PEP, anticoncepción de urgencia) + Batería de 20 choices."}
+
+    "Semana 4: Salud Reproductiva y Cruce Regulatorio": [
+        {"Día": "Lunes", "Tema Específico": "Marco Legal de Salud Sexual: Interrupción del Embarazo: Ley 27.610 Argentina (IVE hasta sem 14 inclusive; ILE por causales sin límite gestacional; plazo 10 días, objeción de conciencia individual) vs causales legales de aborto en Brasil."},
+        {"Día": "Martes", "Tema Específico": "Atención a Víctimas de Violencia Sexual: Protocolo de guardia: profilaxis ITS (Ceftriaxona + Azitromicina + Penicilina benzatínica), PEP HIV (Tenofovir + Lamivudina + Dolutegravir 28 días <72h), Levonorgestrel, notificación obligatoria sin exigencia de denuncia."},
+        {"Día": "Miércoles", "Tema Específico": "Planificación Familiar: Criterios Médicos de Elegibilidad OMS, métodos hormonales combinados vs progestágenos, DIU T-Cobre y SIU-Levonorgestrel, colocación postparto y lactancia."},
+        {"Día": "Jueves", "Tema Específico": "Infertilidad y Úlceras Genitales: Estudio de pareja infértil (espermograma, histerosalpingografía con Cotte, progesterona lútea). Diagnóstico diferencial de úlceras (Sífilis primaria vs Cancroide vs Herpes vs Linfogranuloma venéreo vs Donovanosis)."},
+        {"Día": "Viernes", "Tema Específico": "Simulacro Integrador de Tocoginecología: Batería cronometrada de 30 choices combinando casos clínicos transversales."},
+        {"Día": "Sábado", "Tema Específico": "Simulacro Oficial Completo de Tocoginecología (80 a 100 choices) integrando Examen Único, CABA, Privados e INEP/Revalida."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Leyes Argentinas (Ley 26.061 Protección de Niñez y Ley 26.743 Identidad de Género: autonomía desde los 16 años) + Cuaderno de Errores de Tocoginecología."}
     ],
-    "Semana 5 (Pediatría: Infecciones Respiratorias Agudas Bajas - IRAB)": [
-        {"Día": "Lunes", "Tema Específico": "Bronquiolitis Aguda: Diagnóstico clínico, factores de riesgo de gravedad, Score de Tal, oxigenoterapia y criterio de no uso de B2 ni corticoides."},
-        {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Etiologías según grupo etario, tratamiento ambulatorio con Amoxicilina y criterios de internación."},
-        {"Día": "Miércoles", "Tema Específico": "Laringitis y Crup: Diagnóstico clínico, estridor, clasificación de gravedad y dosis de Dexametasona / Adrenalina nebulizada."},
-        {"Día": "Jueves", "Tema Específico": "Crisis Asmática Pediátrica: Evaluación de severidad, esquema de rescate con Salbutamol reglado y corticoides sistémicos según GINA/SAP."},
-        {"Día": "Viernes", "Tema Específico": "Batería Integradora de IRAB Pediátricas."}
+
+    # =========================================================
+    # MÓDULO II: PEDIATRÍA Y NEONATOLOGÍA (SEMANAS 5 A 8)
+    # =========================================================
+    "Semana 5: Pediatría – Niño Sano, Puericultura y Nutrición": [
+        {"Día": "Lunes", "Tema Específico": "Crecimiento y Somatometría: Curvas OMS, percentilos, velocidad de crecimiento y desnutrición aguda/crónica (Marasmo calórico vs Kwashiorkor proteico)."},
+        {"Día": "Martes", "Tema Específico": "Neurodesarrollo y Puericultura: Hitos motores gruesos/finos, lenguaje, pauta social, reflejos arcaicos y tamizaje de TEA con M-CHAT."},
+        {"Día": "Miércoles", "Tema Específico": "Lactancia Materna y Alimentación Complementaria: Técnicas, contraindicaciones absolutas y pautas de incorporación de semisólidos."},
+        {"Día": "Jueves", "Tema Específico": "Anemia Infantil y Suplementación: Profilaxis y tratamiento de anemia ferropénica (Guía SAP: 6 mg/kg/día de hierro elemental vs protocolo MS Brasil)."},
+        {"Día": "Viernes", "Tema Específico": "Prevención de Accidentes y Crianza: Sueño Seguro SAP (posición supina, no colecho de riesgo) + Sospecha de Maltrato infantil (notificación Ley 26.061) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices oficiales de Puericultura, Crecimiento y Nutrición pediátrica."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Vacunas Argentina (Rotavirus 2-4m, MenACWY 3-5-15m, dTPa y HPV dosis única a los 11 años, VSR en gestantes sem 32-36) + Flash-Review Ginecología (Vulvovaginitis y PAP)."}
     ],
-    "Semana 6 (Pediatría: Gastroenterología, Medio Interno y Nefrología)": [
-        {"Día": "Lunes", "Tema Específico": "Diarrea Aguda y Deshidratación: Evaluación clínica de grado de deshidratación y Planes de Hidratación OMS (Plan A, B con SRO, C EV)."},
-        {"Día": "Martes", "Tema Específico": "Síndrome Urémico Hemolítico (SUH): Fisiopatología por Shiga-toxina, tríada diagnóstica, soporte y contraindicación de antibióticos."},
-        {"Día": "Miércoles", "Tema Específico": "Infección del Trato Urinario (ITU) y Fiebre sin Foco: Toma de muestra estéril, tratamiento empírico oral/EV y criterios de ecografía/CUGM."},
-        {"Día": "Jueves", "Tema Específico": "Cetoacidosis Diabética Pediátrica: Protocolo de hidratación con SF 0.9%, corrección de potasio e infusión de insulina continua."},
-        {"Día": "Viernes", "Tema Específico": "Batería semanal de Gastroenterología y Nefrología Pediátrica."}
+
+    "Semana 6: Pediatría – Infecciones Respiratorias y Exantemáticas": [
+        {"Día": "Lunes", "Tema Específico": "Bronquiolitis Aguda: 1º episodio de sibilancias <2 años, score de Tal, oxigenoterapia de soporte y pauta SAP (no salbutamol, no corticoides, no kinesioterapia respiratoria en 1º episodio)."},
+        {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Etiología por edad (S. pneumoniae, virus, Mycoplasma), clínica típica vs atípica, Amoxicilina oral ambulatoria y criterios de internación."},
+        {"Día": "Miércoles", "Tema Específico": "Vía Aérea Superior: Crup/Laringitis (Dexametasona VO/IM y adrenalina nebulizada), Epiglotitis y Coqueluche. Otitis Media Aguda (Amoxicilina 80-90 mg/kg/día) y Faringoamigdalitis estreptocócica (criterios de Centor)."},
+        {"Día": "Jueves", "Tema Específico": "Asma Pediátrica: Crisis obstructiva, rescate reglado con Salbutamol en aerosol con aerocámara, sulfato de magnesio EV en refractarias y corticoides sistémicos."},
+        {"Día": "Viernes", "Tema Específico": "Exantemáticas Infantiles: Sarampión (Koplik), Rubéola, Escarlatina, Varicela, Eritema infeccioso, Kawasaki (Gammaglobulina EV + AAS) y Enfermedad Mano-Pie-Boca (Coxsackie A16) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Bloque de 70 choices oficiales de patología respiratoria e infectología pediátrica."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Calendario PNI Brasil (rescate Febre Amarela, BCG, VOP) + Flash-Review Obstetricia (Hipertensión y Hemorragias)."}
     ],
-    "Semana 7 (Pediatría: Puericultura, Crecimiento y Prevención)": [
-        {"Día": "Lunes", "Tema Específico": "Hitos del Crecimiento y Neurodesarrollo: Evaluación motora, lenguaje y social por etapas, tamizaje de autismo (M-CHAT) y pautas de alarma."},
-        {"Día": "Martes", "Tema Específico": "Nutrición Infantil: Lactancia materna exclusiva, alimentación complementaria y pautas de suplementación con Hierro/Vitaminas."},
-        {"Día": "Miércoles", "Tema Específico": "Trastornos Nutricionales: Diagnóstico antropométrico de Desnutrición (Marasmo vs Kwashiorkor), Sobrepeso y Obesidad (IMC > Pc 97)."},
-        {"Día": "Jueves", "Tema Específico": "Pautas de Crianza y Prevención de Accidentes: Sueño Seguro SAP (posición supina, colecho de riesgo) y sospecha de Maltrato/Abuso Infantil."},
-        {"Día": "Viernes", "Tema Específico": "Simulacro Semanal de Puericultura y Desarrollo Infantil."}
+
+    "Semana 7: Pediatría – Urgencias, Gastro, Nefro y Medio Interno": [
+        {"Día": "Lunes", "Tema Específico": "Diarrea Aguda y Deshidratación: Evaluación clínica y Planes OMS (Plan A ambulatorio con zinc, Plan B con SRO en centro de salud, Plan C de shock con expansión rápida de SF 0.9%)."},
+        {"Día": "Martes", "Tema Específico": "SUH y Salud Mental: Síndrome Urémico Hemolítico (STEC O157:H7, tríada clásica: anemia microangiopática, plaquetopenia, falla renal; contraindicación de antibióticos). TDAH y Trastorno Opositivo Desafiador (criterios clínicos, metilfenidato)."},
+        {"Día": "Miércoles", "Tema Específico": "Infección Urinaria y Fiebre sin Foco: Toma de muestra estéril (punción vs cateterismo vs chorro limpio), tratamiento empírico y criterios de ecografía renal en primera ITU febril."},
+        {"Día": "Jueves", "Tema Específico": "Síndromes Convulsivos: Convulsión febril simple vs compleja y Espasmos infantiles (Síndrome de West: hipsarritmia, espasmos, retraso madurativo)."},
+        {"Día": "Viernes", "Tema Específico": "Cetoacidosis Diabética Pediátrica (CAD): Secuencia obligatoria: 1° expandir con SF 0.9%, 2° verificar/reponer potasio, 3° infusión continua de insulina regular EV sin bolo inicial + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices de urgencias pediátricas, nefrología y medio interno infantil."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Estrategia AIDPI Brasil (neumonía y diarrea en APS) + Flash-Review Obstetricia (Partograma y Hemorragia Puerperal)."}
     ],
-    "Semana 8 (Pediatría: Vacunación, Neonatología y Exantemáticas)": [
-        {"Día": "Lunes", "Tema Específico": "Calendario Nacional de Vacunación: Esquemas completos en lactantes e ingreso escolar, puesta al día y vacunas específicas."},
-        {"Día": "Martes", "Tema Específico": "Neonatología Inmediata: Test de APGAR, examen físico neonatal y Reanimación Cardiopulmonar Neonatal (algoritmo SAP/SBP)."},
-        {"Día": "Miércoles", "Tema Específico": "Ictericia Neonatal: Fisiológica vs Patológica (incompatibilidad ABO/Rh), indicación de Luminoterapia y Exanguinotransfusión."},
-        {"Día": "Jueves", "Tema Específico": "Enfermedades Exantemáticas: Sarampión, Rubéola, Varicela, Eritema Infeccioso, Roséola, Escarlatina y Enfermedad de Kawasaki."},
-        {"Día": "Viernes", "Tema Específico": "Pesquisa Neonatal (Test del talón, OEA, reflejo rojo) + Batería de 20 choices."}
+
+    "Semana 8: Neonatología Pura y Cierre de Pediatría": [
+        {"Día": "Lunes", "Tema Específico": "Reanimación Cardiopulmonar Neonatal (algoritmo SBP/SAP): Pasos iniciales en RN deprimido o con meconio, VPP con máscara, masaje cardíaco y adrenalina."},
+        {"Día": "Martes", "Tema Específico": "Dificultad Respiratoria Neonatal: Diagnóstico diferencial de Taquipnea Transitoria (TTN / pulmón húmedo) vs Membrana Hialina (prematuros) vs Aspiración Meconial (SAM en postérmino)."},
+        {"Día": "Miércoles", "Tema Específico": "Ictericia Neonatal: Fisiológica vs patológica (<24 h o bilirrubina directa >1 mg/dL), incompatibilidad ABO/Rh, luminoterapia y exanguinotransfusión."},
+        {"Día": "Jueves", "Tema Específico": "Sepsis Neonatal e Infecciones Congénitas (TORCH): Sepsis precoz (SGB, E. coli: ampicilina + gentamicina) vs tardía; Toxoplasmosis (Tétrada de Sabin), CMV y Chagas congénito."},
+        {"Día": "Viernes", "Tema Específico": "Pesquisa Neonatal Obligatoria: Pesquisa metabólica (hipotiroidismo congénito, FQ, PKU, hiperplasia suprarrenal), reflejo rojo ocular y otoemisiones acústicas + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Simulacro General de Pediatría y Neonatología (80 choices)."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Cuaderno de Errores de Pediatría + Flash-Review Bloque Completo de Tocoginecología (25 choices)."}
     ],
-    "Semana 9 (Clínica Médica: Cardiología y Urgencias Vasculares)": [
-        {"Día": "Lunes", "Tema Específico": "Hipertensión Arterial Sistémica (HAS): Criterios diagnósticos en consultorio/MAPA/MDPA, metas y tratamiento escalonado."},
-        {"Día": "Martes", "Tema Específico": "Crisis Hipertensivas: Urgencia vs Emergencia Hipertensiva (daño de órgano blanco) y manejo endovenoso con Labetalol / Nitroprusiato."},
-        {"Día": "Miércoles", "Tema Específico": "Síndrome Coronario Agudo: IAM con elevación del ST (ECG, ventana terapéutica, angioplastia vs trombolíticos) y SCA sin elevación del ST."},
-        {"Día": "Jueves", "Tema Específico": "Insuficiencia Cardíaca (IC): IC con FE reducida y los 4 pilares farmacológicos con impacto en sobrevida (iSGLT2, ARNI/IECA, BB, ARM)."},
-        {"Día": "Viernes", "Tema Específico": "Fibrilación Auricular (estratificación CHA2DS2-VASc y anticoagulación) + Batería de 20 choices."}
+
+    # =========================================================
+    # MÓDULO III: CIRUGÍA GENERAL Y TRAUMA (SEMANAS 9 A 11)
+    # =========================================================
+    "Semana 9: Trauma y Soporte Vital Quirúrgico (ATLS)": [
+        {"Día": "Lunes", "Tema Específico": "Evaluación Inicial en Trauma (ABCDE): Vía aérea con control cervical, intubación de secuencia rápida y cricotiroidostomía quirúrgica de urgencia en trauma maxilofacial grave."},
+        {"Día": "Martes", "Tema Específico": "Trauma Torácico y Neurotrauma: Neumotórax a tensión (descompresión con aguja/catéter 5º EIC LAA sin esperar Rx), Hemotórax masivo (>1500 mL), Taponamiento (Beck). TEC: Glasgow, TAC cráneo; Hematoma epidural (arteria meníngea media, intervalo lúcido, biconvexa) vs subdural (venas puente, semiluna)."},
+        {"Día": "Miércoles", "Tema Específico": "Shock Hemorrágico en Trauma: Clasificación clínica (Clases I a IV), protocolo de transfusión masiva (plasma, plaquetas y glóbulos rojos 1:1:1) y Ácido Tranexámico precoz dentro de las 3 horas."},
+        {"Día": "Jueves", "Tema Específico": "Trauma Abdominal y Pelviano: Evaluación hemodinámica, ecografía FAST (Morrison, esplenorrenal, suprapúbico y pericárdico); paciente inestable con FAST (+) a Laparotomía; estable a TAC y manejo no operatorio (MNO)."},
+        {"Día": "Viernes", "Tema Específico": "Quemaduras: Regla de los 9 de Wallace, fluidoterapia con Ringer Lactato (Parkland: 50% en primeras 8 h) y quemadura eléctrica (efecto iceberg con meta de diuresis 100-200 mL/h) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Bloque de 70 choices oficiales exclusivos de ATLS, quemaduras y shock hemorrágico."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Fracturas de urgencia y luxaciones (hombro anterior vs posterior, síndrome compartimental y fasciotomía) + Flash-Review IRAB pediátrica."}
     ],
-    "Semana 10 (Clínica Médica: Infectología y Arbovirosis)": [
-        {"Día": "Lunes", "Tema Específico": "Dengue y Arbovirosis Urbanas: Fases clínicas, signos de alarma, clasificación por Grupos A, B, C, D y reposición con cristaloides."},
-        {"Día": "Martes", "Tema Específico": "Tuberculosis (TBC): Diagnóstico con GeneXpert / Baciloscopía, esquema RIPE (2RIPE/4RI) y manejo de Tuberculosis Latente."},
-        {"Día": "Miércoles", "Tema Específico": "VIH / SIDA: Diagnóstico serológico, inicio de TARV y profilaxis de infecciones oportunistas."},
-        {"Día": "Jueves", "Tema Específico": "Infecciones del SNC: Meningitis bacteriana aguda (punción lumbar, LCR, antibiótico empírico + Dexametasona y quimioprofilaxis)."},
-        {"Día": "Viernes", "Tema Específico": "Sepsis y Shock Séptico (Criterios Sepsis-3, bundle de la primera hora) + Batería de choices."}
+
+    "Semana 10: Cirugía – Abdomen Agudo": [
+        {"Día": "Lunes", "Tema Específico": "Apendicitis Aguda: Cronología de Murphy, semiología peritoneal (Blumberg, Rovsing, psoas), escala de Alvarado e indicación quirúrgica inmediata laparoscópica/convencional."},
+        {"Día": "Martes", "Tema Específico": "Patología Biliar Aguda: Colecistitis aguda litiásica (signo de Murphy ecográfico, engrosamiento de pared vesicular >4 mm, colecistectomía precoz) vs Cólico biliar simple."},
+        {"Día": "Miércoles", "Tema Específico": "Infección Biliar Grave: Colangitis aguda supurativa (Tríada de Charcot, Péntada de Reynolds, descompresión urgente por CPRE + antibióticos EV) y Coledocolitiasis."},
+        {"Día": "Jueves", "Tema Específico": "Diverticulitis Aguda de Colon Izquierdo: TAC con contraste como estándar de oro, clasificación de Hinchey (I a IV) y contraindicación formal de colonoscopía en agudo."},
+        {"Día": "Viernes", "Tema Específico": "Abdomen Obstructivo y Cáncer Colorrectal: Bridas vs Vólvulo sigmoideo (signo del grano de café) e Isquemia mesentérica. Pesquisa CCR (sangre oculta/colonoscopía a los 50 años) y operación de Hartmann en obstrucción maligna + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices de abdomen agudo inflamatorio, obstructivo y patología biliar."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Pancreatitis aguda (criterios de Atlanta, abordaje step-up de necrosis infectada con drenaje percutáneo previo a cirugía) + Flash-Review Deshidratación infantil y SUH."}
     ],
-    "Semana 11 (Clínica Médica: Endocrinología y Metabolismo)": [
-        {"Día": "Lunes", "Tema Específico": "Diabetes Mellitus Tipo 2: Diagnóstico, metas de HbA1c, cambios en estilo de vida y farmacoterapia oral (Metformina, iSGLT2, GLP-1)."},
-        {"Día": "Martes", "Tema Específico": "Insulinoterapia en DM: Indicaciones, esquemas basal-bolo y prevención de hipoglucemias."},
-        {"Día": "Miércoles", "Tema Específico": "Cetoacidosis Diabética (CAD) y Estado Hiperglucémico Hiperosmolar (EHH): Criterios diferenciales, fluidoterapia, potasio e insulina EV."},
-        {"Día": "Jueves", "Tema Específico": "Patología Tiroidea: Hipotiroidismo primario y subclínico (TSH/T4L, Levotiroxina), Hipertiroidismo y Enfermedad de Graves."},
-        {"Día": "Viernes", "Tema Específico": "Manejo de Dislipemias y Riesgo Cardiovascular Global + Batería de choices."}
+
+    "Semana 11: Cirugía – Pared, Proctología, Urología y Pediátrica": [
+        {"Día": "Lunes", "Tema Específico": "Pared Abdominal: Hernia inguinal indirecta (anillo profundo, lateral a epigástricos) vs Directa (Hesselbach) vs Crural/Femoral (por debajo de ligamento inguinal, alto riesgo de estrangulamiento)."},
+        {"Día": "Martes", "Tema Específico": "Patología Anorrectal Benigna: Hemorroides internas (grados I a IV, indoloras) vs externas trombosadas, Fisura anal (línea media posterior, dolor defecatorio) y Absceso perianal (drenaje de urgencia)."},
+        {"Día": "Miércoles", "Tema Específico": "Urología Quirúrgica: Cólico renoureteral (TAC sin contraste, tamsulosina si <10 mm) y Escroto agudo (Torsión testicular con Eco-Doppler y orquidopexia bilateral <6 h vs Epididimitis con Prehn positivo)."},
+        {"Día": "Jueves", "Tema Específico": "Cirugía Pediátrica de Urgencia: Estenosis hipertrófica de píloro (vómitos no biliares en proyectil, alcalosis metabólica hipoclorémica), Invaginación intestinal (ecografía en diana) y Artritis séptica de cadera (Kocher)."},
+        {"Día": "Viernes", "Tema Específico": "Esófago y Complicaciones Post-Qx: ERGE, Barrett, Acalasia (manometría, pico de pájaro). Fiebre postoperatoria (4W: Wind atelectasia 24-48h, Water ITU 72h, Wound infección herida >5d, Walking TVP/TEP) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Simulacro General de Cirugía General y Trauma (80 choices)."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Cuaderno de Errores de Cirugía + Flash-Review Neonatología y Puericultura (25 choices)."}
     ],
-    "Semana 12 (Clínica Médica: Neumonología, Nefrología y Neurología)": [
-        {"Día": "Lunes", "Tema Específico": "Asma y EPOC en el Adulto: Diagnóstico espirométrico, clasificación GOLD, manejo crónico y tratamiento de exacerbaciones."},
-        {"Día": "Martes", "Tema Específico": "Neumonía Adquirida en la Comunidad (NAC): Score CURB-65 y esquemas antibióticos empíricos en internación vs ambulatorio."},
-        {"Día": "Miércoles", "Tema Específico": "Medio Interno y Trastornos Hidroelectrolíticos: Hiponatremia (corrección) e Hiperkalemia grave (Gluconato de calcio y medidas de desplazamiento)."},
-        {"Día": "Jueves", "Tema Específico": "Accidente Cerebrovascular (ACV): ACV Isquémico agudo, escala NIHSS, ventana para rtPA endovenoso (<4.5 h) y manejo de TA."},
-        {"Día": "Viernes", "Tema Específico": "Cefaleas (Migraña, Tensional, Cluster y Red Flags) + Batería semanal de 20 choices."}
+
+    # =========================================================
+    # MÓDULO IV: CLÍNICA MÉDICA Y SUBESPECIALIDADES (SEMANAS 12 A 15)
+    # =========================================================
+    "Semana 12: Clínica Médica – Cardiología y Urgencias": [
+        {"Día": "Lunes", "Tema Específico": "Hipertensión Arterial: Criterios diagnósticos, monitoreo MAPA/MDPA, HTA guardapolvo blanco y enmascarada, metas y combinaciones farmacológicas (Guía HTA MSAL)."},
+        {"Día": "Martes", "Tema Específico": "Crisis Hipertensivas: Urgencia vs Emergencia hipertensiva (definida por daño agudo de órgano blanco: encéfalo, corazón, riñón, retina) y manejo EV con Labetalol o Nitroprusiato."},
+        {"Día": "Miércoles", "Tema Específico": "Síndrome Coronario Agudo: IAM con elevación del ST (tiempos de reperfusión: angioplastia puerta-balón <90-120 min vs fibrinolíticos <30 min, DAPT con AAS + Ticagrelor/Clopidogrel, anticoagulación, estatinas) y SCA sin ST."},
+        {"Día": "Jueves", "Tema Específico": "Insuficiencia Cardíaca y Valvulopatías: Cuádruple terapia en ICFEr con impacto en mortalidad (iSGLT2, ARNI o IECA/ARA2, Betabloqueantes, Espironolactona). Estenosis aórtica e insuficiencia mitral."},
+        {"Día": "Viernes", "Tema Específico": "Arritmias y Fibrilación Auricular: Estratificación de riesgo tromboembólico con CHA₂DS₂-VASc, indicación de anticoagulación (DOACs vs Warfarina) y control de frecuencia vs ritmo + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Bloque de 70 choices de cardiología clínica y urgencias vasculares."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Tablas de Riesgo Cardiovascular Global (MSAL) y criterios de estatinas en prevención primaria + Flash-Review ATLS y Vía aérea."}
     ],
-    "Semana 13 (Clínica Médica: Gastroenterología, Hematología y Endemias Brasil)": [
-        {"Día": "Lunes", "Tema Específico": "Hemorragia Digestiva Alta (HDA variceal vs no variceal), Úlcera péptica, erradicación de H. pylori y Pancreatitis Aguda (Atlanta)."},
-        {"Día": "Martes", "Tema Específico": "Hepatopatías Crónicas: Cirrosis y sus complicaciones (Ascitis, Peritonitis Bacteriana Espontánea, Encefalopatía Hepática)."},
-        {"Día": "Miércoles", "Tema Específico": "Hematología: Diagnóstico diferencial de Anemias (Ferropénica, Megaloblástica por B12/Folato, Anemia de Trastornos Crónicos)."},
-        {"Día": "Jueves", "Tema Específico": "Endemias Revalida Brasil: Leishmaniasis Visceral (Calazar), Chagas agudo/crónico, Esporotricosis, Esquistosomiasis y Accidentes Ofídicos."},
-        {"Día": "Viernes", "Tema Específico": "Simulacro General de Clínica Médica (20 choices oficiales)."}
+
+    "Semana 13: Clínica Médica – Endocrino, Medio Interno y Gastro": [
+        {"Día": "Lunes", "Tema Específico": "Diabetes Mellitus Tipo 2: Criterios diagnósticos (ayunas ≥126, PTOG ≥200, HbA1c ≥6.5%), metas y farmacoterapia combinada precoz (Metformina + iSGLT2 / análogos GLP-1 en alto riesgo CV/renal; Guía MSAL)."},
+        {"Día": "Martes", "Tema Específico": "Crisis Glucémicas y Patología Digestiva: CAD y EHH (secuencia: SF 0.9%, corregir potasio antes de insulina, goteo insulina regular EV). Enfermedad Celíaca (anti-tTG IgA + IgA total, biopsia Marsh) y EII (Crohn vs Colitis Ulcerosa)."},
+        {"Día": "Miércoles", "Tema Específico": "Patología Tiroidea: Hipotiroidismo primario y subclínico (indicaciones de Levotiroxina, TSH, Anti-TPO), Hipertiroidismo (Enfermedad de Graves: TRAB, tionamidas, betabloqueantes) y evaluación del nódulo tiroideo."},
+        {"Día": "Jueves", "Tema Específico": "Trastornos Hidroelectrolíticos Críticos: Hiponatremia (osmolaridad, volemia; SF 3% en síntomas neurológicos graves; velocidad <8-10 mEq/L/día para evitar mielinólisis) e Hiperkalemia grave (Gluconato de Calcio EV + medidas de redistribución)."},
+        {"Día": "Viernes", "Tema Específico": "Nefrología y Hepatopatías: ERC (estadios KDIGO, nefroprotección con iSGLT2 e IECA/ARA2), Síndrome Nefrótico vs Nefrítico, y Cirrosis con ascitis y PBE (PMN ≥250/mm³, Ceftriaxona + Albúmina) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices de endocrinología, medio interno, nefrología y hepatología clínica."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Protocolos de insulinoterapia en APS de Brasil + Flash-Review Abdomen agudo y Hernias."}
     ],
-    "Semana 14 (Cirugía General: Trauma y Protocolo ATLS)": [
-        {"Día": "Lunes", "Tema Específico": "Evaluación Inicial en Trauma (ABCDE): Manejo de vía aérea con protección cervical, intubación e indicaciones de cricotiroidostomía."},
-        {"Día": "Martes", "Tema Específico": "Trauma Torácico: Neumotórax a Tensión (descompresión con aguja), Hemotórax Masivo y Taponamiento Cardíaco (Tríada de Beck)."},
-        {"Día": "Miércoles", "Tema Específico": "Trauma Abdominal y Pelviano: Evaluación hemodinámica, ecografía FAST, TC con contraste y criterios de laparotomía vs manejo conservador."},
-        {"Día": "Jueves", "Tema Específico": "Choque Hemorrágico en Trauma (Clases I a IV), Protocolo de Transfusión Masiva (1:1:1) y Ácido Tranexámico precoz."},
-        {"Día": "Viernes", "Tema Específico": "Quemaduras (Fórmula de Parkland, vía aérea y quemaduras eléctricas) + Batería de choices."}
+
+    "Semana 14: Clínica Médica – Neumo, Neuro y Reumatología": [
+        {"Día": "Lunes", "Tema Específico": "Asma y EPOC en el Adulto: Espirometría diagnóstica (VEF1/CVF <0.70 post-BD), clasificación GOLD, tratamiento escalonado y exacerbaciones (broncodilatadores, corticoides sistémicos y antibióticos según Anthonisen)."},
+        {"Día": "Martes", "Tema Específico": "Neumonía y TEP: Neumonía Adquirida en la Comunidad (criterios CURB-65, esquemas ambulatorios vs sala general) y Tromboembolismo Pulmonar (score Wells, dímero D, AngioTAC de tórax y anticoagulación)."},
+        {"Día": "Miércoles", "Tema Específico": "Accidente Cerebrovascular (ACV): ACV isquémico agudo, escala NIHSS, TAC de cráneo simple sin contraste para descartar sangrado, ventana terapéutica rtPA EV (<4.5 h) y metas de TA (TAS <185, TAD <110)."},
+        {"Día": "Jueves", "Tema Específico": "Cefaleas y Banderas Rojas: Migraña (triptanes en crisis y profilaxis con betabloqueantes/topiramato), Cefalea tensional, en racimos/cluster (O₂ 100%) y sospecha de hemorragia subaracnoidea."},
+        {"Día": "Viernes", "Tema Específico": "Reumatología y Cáncer de Piel: Monoartritis aguda (líquido sinovial: Gota vs Artritis séptica), Artritis Reumatoidea (Anti-CCP, Metotrexato precoz) y Lupus (ACR/EULAR, FAN, anti-DNA, anti-Sm). Melanoma (ABCDE, biopsia escisional) vs Ca basocelular y espinocelular + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices de neumonología, neurología, reumatología y dermatología clínica."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Intoxicaciones por psicofármacos y abstinencia alcohólica (CIWA-Ar y benzodiazepinas) + Flash-Review Preeclampsia y Hemorragias obstétricas."}
     ],
-    "Semana 15 (Cirugía General: Abdomen Agudo Inflamatorio y Biliar)": [
-        {"Día": "Lunes", "Tema Específico": "Apendicitis Aguda: Diagnóstico clínico, escala de Alvarado, ecografía/TC en casos dudosos y tratamiento quirúrgico."},
-        {"Día": "Martes", "Tema Específico": "Patología Biliar: Cólico biliar, Colecistitis Aguda (Criterios de Tokyo) y Colecistectomía laparoscópica."},
-        {"Día": "Miércoles", "Tema Específico": "Colangitis Aguda (Tríada de Charcot, Péntada de Reynolds y descompresión biliar urgente) y Coledocolitiasis (CPRE)."},
-        {"Día": "Jueves", "Tema Específico": "Diverticulitis Aguda: TC como Gold Standard, clasificación de Hinchey y tratamiento médico vs quirúrgico."},
-        {"Día": "Viernes", "Tema Específico": "Batería Semanal de Abdomen Agudo Inflamatorio."}
+
+    "Semana 15: Clínica Médica – Infecto, Hemato y Endemias": [
+        {"Día": "Lunes", "Tema Específico": "Dengue y Arbovirosis: Fases clínicas (febril, crítica, recuperación), signos de alarma, clasificación por gravedad OMS (Grupo A ambulatorio, B supervisado, C shock compensado con cristaloides EV, D shock descompensado)."},
+        {"Día": "Martes", "Tema Específico": "Tuberculosis: Sintomático respiratorio (>15 días tos y catarro), diagnóstico rápido molecular GeneXpert MTB/RIF, esquema RIPE (2RIPE/4RI) y tratamiento de Tuberculosis Latente."},
+        {"Día": "Miércoles", "Tema Específico": "VIH y Sepsis: Diagnóstico VIH, inicio de TARV, profilaxis oportunistas (Cotrimoxazol en CD4 <200 para PCP). Criterios Sepsis-3 y bundle de resucitación de la 1ª hora (cristaloides a 30 mL/kg y hemocultivos previos a ATB)."},
+        {"Día": "Jueves", "Tema Específico": "Hematología Clínica: Algoritmo de Anemias por VCM: microcítica (ferropénica vs talasemia), normocítica y macrocítica (déficit B12 vs folato); trombocitopenias (PTI) y coagulopatías (CID)."},
+        {"Día": "Viernes", "Tema Específico": "Endemias Regionales: Leishmaniasis visceral/Kala-Azar (Glucantime/Anfotericina B), Paracoccidioidomicosis (timón de barco), accidentes ofídicos (botrópico vs crotálico) y Chagas agudo/crónico (Benznidazol). Lepra/Hanseniasis (paucibacilar vs multibacilar, esquema PQT) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Simulacro General de Clínica Médica (80 choices)."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Cuaderno de Errores de Clínica Médica + Flash-Review Cirugía General y ATLS (25 choices)."}
     ],
-    "Semana 16 (Cirugía General: Oclusión, Pared Abdominal y Cirugía Pediátrica)": [
-        {"Día": "Lunes", "Tema Específico": "Abdomen Agudo Obstructivo: Obstrucción de intestino delgado (bridas) vs colon (cáncer, vólvulo de sigmoides) e Isquemia Mesentérica."},
-        {"Día": "Martes", "Tema Específico": "Patología de Pared Abdominal: Hernias inguinales (directa vs indirecta), crurales y umbilicales. Reducible vs Incarcerada vs Estrangulada."},
-        {"Día": "Miércoles", "Tema Específico": "Patología Anorrectal Benigna: Hemorroides, Fisura Anal y Abscesos/Fístulas perianales."},
-        {"Día": "Jueves", "Tema Específico": "Cirugía Pediátrica y Ortopedia: Estenosis Hipertrófica del Píloro, Invaginación Intestinal y Cadera Dolorosa (Kocher)."},
-        {"Día": "Viernes", "Tema Específico": "Simulacro General de Cirugía (20 choices oficiales)."}
+
+    # =========================================================
+    # MÓDULO V: SALUD PÚBLICA, SALUD MENTAL Y LEYES (SEMANAS 16 A 18)
+    # =========================================================
+    "Semana 16: Salud Pública – Epidemiología, Bioestadística y Bioética": [
+        {"Día": "Lunes", "Tema Específico": "Medidas de Frecuencia y Mortalidad: Incidencia acumulada, densidad de incidencia, prevalencia y cálculo de tasas de mortalidad infantil (neonatal precoz vs tardía vs postneonatal) y Razón de Mortalidad Materna."},
+        {"Día": "Martes", "Tema Específico": "Diseños de Estudios Epidemiológicos: Transversales (prevalencia), Casos y Controles (Odds Ratio, retrospectivos), Cohortes (Incidencia y Riesgo Relativo) y Ensayos Clínicos Controlados Aleatorizados."},
+        {"Día": "Miércoles", "Tema Específico": "Pruebas Diagnósticas: Tablas 2x2: Sensibilidad, Especificidad, VPP, VPN, Curvas ROC y tipos de sesgos (selección, información, confusión)."},
+        {"Día": "Jueves", "Tema Específico": "Vigilancia Epidemiológica: Notificación obligatoria en SINAN (Brasil) y sistema SISA (Argentina). Niveles de prevención (primaria, secundaria, terciaria, cuaternaria)."},
+        {"Día": "Viernes", "Tema Específico": "Bioética, SPIKES y Paliativos: Principios de bioética (Autonomía, Beneficencia, No Maleficencia, Justicia), Secreto profesional y confidencialidad en adolescentes; Protocolo SPIKES. Cuidados paliativos (escalera OMS, morfina) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 ejercicios y choices de epidemiología clínica, bioestadística y bioética."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Salud Ocupacional en Brasil (emisión de CAT, neumoconiosis y dermatosis laborales) + Flash-Review Vacunas y Puericultura."}
     ],
-    "Semana 17 (Salud Pública: Epidemiología, Bioestadística y Bioética)": [
-        {"Día": "Lunes", "Tema Específico": "Medidas de Frecuencia y Mortalidad: Incidencia acumulada, densidad de incidencia, prevalencia, tasa de mortalidad infantil y materna."},
-        {"Día": "Martes", "Tema Específico": "Diseños de Estudios Epidemiológicos: Transversales, Casos y Controles (Odds Ratio), Cohortes (Riesgo Relativo) y Ensayos Clínicos."},
-        {"Día": "Miércoles", "Tema Específico": "Pruebas Diagnósticas: Sensibilidad, Especificidad, Valor Predictivo Positivo (VPP) y Negativo (VPN), Curvas ROC."},
-        {"Día": "Jueves", "Tema Específico": "Atención Primaria de la Salud (APS): Atributos de Starfield, Prevención Cuaternaria y Vigilancia Epidemiológica (SISA/SINAN)."},
-        {"Día": "Viernes", "Tema Específico": "Bioética: Principios bioéticos, secreto profesional y comunicación de malas noticias (Protocolo SPIKES) + Choices."}
+
+    "Semana 17: Salud Mental y Emergencias Psiquiátricas": [
+        {"Día": "Lunes", "Tema Específico": "Emergencias Psiquiátricas en Guardia: Agitación psicomotora y conducta violenta: desescalamiento verbal -> contención física -> sedación farmacológica de primera línea (Haloperidol IM +/- Lorazepam)."},
+        {"Día": "Martes", "Tema Específico": "Evaluación del Riesgo de Suicidio: Factores de riesgo mayores, signos de alarma, valoración de letalidad, medidas inmediatas de seguridad y criterios de internación."},
+        {"Día": "Miércoles", "Tema Específico": "Síndromes Mentales Orgánicos: Delirium / Síndrome Confusional Agudo (inicio agudo, curso fluctuante, inatención, reversibilidad, causa clínica subyacente) vs Demencias (Alzheimer, Vascular, Lewy)."},
+        {"Día": "Jueves", "Tema Específico": "Trastornos Psiquiátricos Mayores en APS: Trastorno Depresivo Mayor (diagnóstico, ISRS e interacciones), Trastorno de Ansiedad Generalizada y Trastorno de Pánico."},
+        {"Día": "Viernes", "Tema Específico": "Consumo Problemático y TCA: Síndrome de Abstinencia Alcohólica (CIWA-Ar, prevención de delirium tremens con benzodiazepinas). Anorexia nerviosa vs Bulimia nerviosa (criterios de internación) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "70 choices de emergencias psiquiátricas, psicofarmacología y salud mental ambulatoria."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Ley 26.657 de Salud Mental Argentina (internación involuntaria bajo criterio estricto de 'riesgo cierto e inminente', equipo interdisciplinario, hospitales generales) + Flash-Review Diabetes y CAD."}
     ],
-    "Semana 18 (Salud Pública: Marco Legal Argentina vs Sistema SUS Brasil)": [
-        {"Día": "Lunes", "Tema Específico": "Leyes Sanitarias Argentina: Ley 26.529 (Derechos del Paciente, Consentimiento e Historia Clínica) y Ley 25.929 (Parto Humanizado)."},
-        {"Día": "Martes", "Tema Específico": "Salud Mental en Argentina: Ley 26.657 (Criterio de internación involuntaria por 'riesgo cierto e inminente', interdisciplina y derechos)."},
-        {"Día": "Miércoles", "Tema Específico": "Protección de Derechos de NNyA (Ley 26.061), Identidad de Género (Ley 26.743) y Autonomía Progresiva en Salud."},
-        {"Día": "Jueves", "Tema Específico": "Sistema Único de Saúde (SUS Brasil): Constitución de 1988 (Arts. 196-200), Ley 8.080 (Principios) y Ley 8.142 (Participación Social)."},
-        {"Día": "Viernes", "Tema Específico": "Estratégia Saúde da Família (ESF): Atribuciones del equipo y territorialización + Batería de 20 choices de Leyes/SUS."}
+
+    "Semana 18: Choque Regulatorio – Leyes Argentinas vs Sistema SUS": [
+        {"Día": "Lunes", "Tema Específico": "Leyes Sanitarias Argentina I: Ley 26.529 (Derechos del Paciente, Historia Clínica y Consentimiento: autonomía de la voluntad, rechazo de tratamientos, constancia en HC) y Ley 25.929 (Parto Humanizado)."},
+        {"Día": "Martes", "Tema Específico": "Leyes Sanitarias Argentina II: Ley 27.610 (IVE/ILE: plazos semana 14, causales, objeción de conciencia individual) y Ley 26.061 (Protección Integral de Niñas, Niños y Adolescentes y denuncia obligatoria)."},
+        {"Día": "Miércoles", "Tema Específico": "Leyes Sanitarias Argentina III: Ley 26.743 (Identidad de Género: autonomía y toma de decisiones a partir de los 16 años) y Código Civil en autonomía en salud."},
+        {"Día": "Jueves", "Tema Específico": "Marco Legal Brasil I: Constitución Federal 1988 (Art. 196 a 200), Ley 8.080/1990 (Principios: Universalidad, Integralidad, Equidad, Descentralización, Regionalización) y Ley 8.142/1990 (Consejos y Conferencias con 50% usuarios)."},
+        {"Día": "Viernes", "Tema Específico": "Marco Legal Brasil II: Estratégia Saúde da Família (ESF: estructura de UBS, territorialización, adscripción, rol del Agente Comunitario de Salud - ACS), Acesso Avançado y Poblaciones Específicas (Salud Indígena DSEI, PNAISP) + 25 choices."},
+        {"Día": "Sábado", "Tema Específico": "Maratón Legal: 50 choices de Leyes Sanitarias de Argentina + 50 choices de SUS y ESF de Brasil."},
+        {"Día": "Domingo", "Tema Específico": "Módulo Satélite: Resoluciones operativas del SUS (NOB 96 y NOAS) + Cuaderno de Errores de todo el bloque legal."}
     ],
-    "Semana 19 (Consolidación Teórica & Simulacros Intensivos I)": [
-        {"Día": "Lunes", "Tema Específico": "Simulacro Cronometrado 1: 50 Preguntas Integradoras de Tocoginecología y Pediatría."},
-        {"Día": "Martes", "Tema Específico": "Revisión Focalizada: Repaso de puntos débiles detectados en el Cuaderno de Errores."},
-        {"Día": "Miércoles", "Tema Específico": "Simulacro Cronometrado 2: 50 Preguntas Integradoras de Clínica Médica y Cirugía General."},
-        {"Día": "Jueves", "Tema Específico": "Revisión de Guía Comparativa AR vs BR (Dosis críticas, leyes y calendarios)."},
-        {"Día": "Viernes", "Tema Específico": "Simulacro Completo de 100 Preguntas (Examen Oficial de Años Anteriores)."}
+
+    # =========================================================
+    # MÓDULO VI: CONSOLIDACIÓN Y SIMULACROS CRONOMETRADOS (SEMANAS 19 Y 20)
+    # =========================================================
+    "Semana 19: Simulacros Integradores por Áreas Cruzadas": [
+        {"Día": "Lunes", "Tema Específico": "Simulacro 1 (100 preguntas cronometradas): 50 preguntas de Tocoginecología + 50 de Pediatría (formato cruzado 50% INEP / 50% Examen Único)."},
+        {"Día": "Martes", "Tema Específico": "Corrección minuciosa del Simulacro 1 y transcripción analítica de dudas al Cuaderno de Errores."},
+        {"Día": "Miércoles", "Tema Específico": "Simulacro 2 (100 preguntas cronometradas): 40 preguntas de Clínica Médica + 30 de Cirugía General + 30 de Salud Pública y Leyes."},
+        {"Día": "Jueves", "Tema Específico": "Corrección minuciosa del Simulacro 2 y resolución de dudas puntuales en consensos oficiales."},
+        {"Día": "Viernes", "Tema Específico": "Repaso de tablas críticas de memoria: dosis antimicrobianas de urgencia, metas tensionales y puntos de corte de laboratorio."},
+        {"Día": "Sábado", "Tema Específico": "Simulacro Oficial Completo Revalida INEP en tiempo estricto de examen."},
+        {"Día": "Domingo", "Tema Específico": "Corrección comentada y análisis de distractores del Revalida."}
     ],
-    "Semana 20 (Consolidación Teórica & Simulacros Intensivos II)": [
-        {"Día": "Lunes", "Tema Específico": "Simulacro Completo 100 Preguntas: Foco en Preguntas Trampa y Distractores Frecuentes."},
-        {"Día": "Martes", "Tema Específico": "Revisión Completa del Cuaderno Blanco (Reglas de Oro personales para no volver a fallar)."},
-        {"Día": "Miércoles", "Tema Específico": "Repaso Ultrarrápido de High-Yield Pearls de las 5 Grandes Áreas Troncales."},
-        {"Día": "Jueves", "Tema Específico": "Simulacro Final de 100 Preguntas con Tiempo Real (4 horas)."},
-        {"Día": "Viernes", "Tema Específico": "Cierre de Estudio, Estrategia de Manejo del Tiempo y Preparación Mental."}
+
+    "Semana 20: Puesta a Punto Final y Calibración de Velocidad": [
+        {"Día": "Lunes", "Tema Específico": "Simulacro Oficial Completo Examen Único / CABA de 100 preguntas en 2 horas y media."},
+        {"Día": "Martes", "Tema Específico": "Análisis de preguntas dudosas y repaso de letra chica en leyes argentinas y SUS."},
+        {"Día": "Miércoles", "Tema Específico": "Repaso ultrarrápido de síntesis de alto rendimiento por especialidad."},
+        {"Día": "Jueves", "Tema Específico": "Simulacro Final de 100 Preguntas Mixtas simulando condiciones exactas de examen."},
+        {"Día": "Viernes", "Tema Específico": "Cierre de estudio, calibración del ritmo de 1 minuto por pregunta y descanso mental pre-examen."}
     ]
 }
 
