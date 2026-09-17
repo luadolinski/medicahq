@@ -121,10 +121,6 @@ def calcular_racha_activa(username, error_df, progreso_df):
     return racha
         
 # -------------------------------------------------------------
-# CRONOGRAMA GLOBAL (SEMANAS 1 A 20)
-# -------------------------------------------------------------
-cronograma_desglosado = {
-# -------------------------------------------------------------
 # CRONOGRAMA MAESTRO DE ESTUDIO (20 SEMANAS ESTRUCTURADAS)
 # -------------------------------------------------------------
 cronograma_desglosado = {
