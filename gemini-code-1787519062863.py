@@ -340,6 +340,74 @@ cronograma_desglosado = {
         {"Día": "Viernes", "Tema Específico": "Cierre de estudio, calibración del ritmo de 1 minuto por pregunta y descanso mental pre-examen."}
     ]
 }
+import math
+
+def obtener_cronograma_personalizado(modalidad_plan):
+    """
+    Retorna el cronograma adaptado según la duración elegida por el usuario,
+    manteniendo la estructura original o aplicando compresión/filtrado.
+    """
+    # 1. Tu plan base original intacto
+    if modalidad_plan == "🌟 Completo Estándar (20 Semanas)":
+        return cronograma_desglosado
+
+    # 2. Extraer todos los ítems ordenados
+    todos_los_items = []
+    for sem_nombre, dias in cronograma_desglosado.items():
+        for d in dias:
+            todos_los_items.append({
+                "modulo": sem_nombre.split(":")[0],
+                "tema": d["Tema Específico"]
+            })
+
+    # 3. Plan Crash 5 Semanas: Filtrado High-Yield (lo más tomado)
+    if modalidad_plan == "🎯 High-Yield / Solo lo Más Tomado (5 Semanas)":
+        palabras_clave_hy = [
+            "preeclampsia", "hemorragia", "parto", "aborto", "ectópico",
+            "bronquiolitis", "neumonía", "nac", "deshidratación", "suh", "reanimación", "ictericia",
+            "atls", "trauma", "apendicitis", "colecistitis", "obstrucción", "hernia",
+            "hipertensión", "hta", "coronario", "diabetes", "cad", "acv", "dengue", "tuberculosis", "tbc",
+            "epidemiología", "diseños", "pruebas diagnósticas", "bioética", "8.080", "27.610", "26.529", "simulacro"
+        ]
+        items_filtrados = [
+            item for item in todos_los_items
+            if any(k in item["tema"].lower() for k in palabras_clave_hy)
+        ]
+        return _repartir_en_semanas(items_filtrados, semanas=5)
+
+    # 4. Planes de 15, 12 y 10 semanas: 100% del temario compactado
+    semanas_map = {
+        "⚡ Completo Acelerado (15 Semanas)": 15,
+        "🔥 Intensivo Doble Turno (12 Semanas)": 12,
+        "🚀 Intensivo Crash (10 Semanas)": 10
+    }
+    semanas_meta = semanas_map.get(modalidad_plan, 20)
+    return _repartir_en_semanas(todos_los_items, semanas=semanas_meta)
+
+
+def _repartir_en_semanas(lista_items, semanas):
+    """Divide matemáticamente una lista de temas en N semanas."""
+    total = len(lista_items)
+    items_por_semana = math.ceil(total / semanas)
+    cronograma_res = {}
+    dias_nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "Refuerzo 1", "Refuerzo 2"]
+
+    idx = 0
+    for s in range(1, semanas + 1):
+        clave_semana = f"Semana {s} (de {semanas})"
+        dias_lista = []
+        for d_idx in range(items_por_semana):
+            if idx < total:
+                nombre_dia = dias_nombres[d_idx] if d_idx < len(dias_nombres) else f"Bloque {d_idx+1}"
+                dias_lista.append({
+                    "Día": nombre_dia,
+                    "Tema Específico": lista_items[idx]["tema"]
+                })
+                idx += 1
+        if dias_lista:
+            cronograma_res[clave_semana] = dias_lista
+
+    return cronograma_res
 
 # -------------------------------------------------------------
 # CONTROL DE SESIÓN
@@ -416,6 +484,21 @@ if st.sidebar.button("Cerrar Sesión"):
 
 st.sidebar.markdown("---")
 filtro_pais = st.sidebar.selectbox("Enfoque de Examen", ["🔀 Modo Dual / Integrado", "🇦🇷 Solo Argentina", "🇧🇷 Solo Brasil"])
+st.sidebar.markdown("---")
+modalidad_cronograma = st.sidebar.selectbox(
+    "📅 Modalidad de Cronograma:",
+    [
+        "🌟 Completo Estándar (20 Semanas)",
+        "⚡ Completo Acelerado (15 Semanas)",
+        "🔥 Intensivo Doble Turno (12 Semanas)",
+        "🚀 Intensivo Crash (10 Semanas)",
+        "🎯 High-Yield / Solo lo Más Tomado (5 Semanas)"
+    ],
+    index=0  # Por defecto siempre carga el tuyo de 20 semanas
+)
+
+# Cronograma dinámico según el usuario activo
+cronograma_activo = obtener_cronograma_personalizado(modalidad_cronograma)
 
 menu = st.sidebar.radio(
     "Navegación Principal",
@@ -476,11 +559,11 @@ if menu == "🏠 Dashboard & Repaso SRS":
         # 2. Selector de Semana para alinear al cronograma
         c_sem, c_cant = st.columns([3, 1])
         with c_sem:
-            semana_activa = st.selectbox(
-                "Seleccioná la semana del cronograma para tu repaso de hoy:",
-                list(cronograma_desglosado.keys()),
-                index=0
-            )
+          semana_activa = st.selectbox(
+    "Seleccioná la semana del cronograma para tu repaso de hoy:",
+    list(cronograma_activo.keys()),
+    index=0
+)
         with c_cant:
             dosis_diaria = st.slider("Límite diario de choices:", min_value=5, max_value=30, value=10, step=5)
 
@@ -596,9 +679,9 @@ elif menu == "📅 Cronograma Semanal Detallado":
 
     st.markdown("---")
 
-    # Selector de Semana
-    sem_select = st.selectbox("Seleccioná la semana a visualizar:", list(cronograma_desglosado.keys()))
-    dias_semana = cronograma_desglosado[sem_select]
+   # Selector de Semana
+    sem_select = st.selectbox("Seleccioná la semana a visualizar:", list(cronograma_activo.keys()))
+    dias_semana = cronograma_activo[sem_select]
 
     # Contador de la semana seleccionada
     hechos_esta_semana = sum(1 for item in dias_semana if (sem_select, item["Día"]) in completados_set)
