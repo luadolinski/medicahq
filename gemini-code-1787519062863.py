@@ -708,7 +708,7 @@ elif menu == "📅 Cronograma Semanal Detallado":
         esta_marcado = clave_tupla in completados_set
 
         # Columna 1 más ancha (2.2) para que quepa "Miércoles — 📌 Tema 1" completo sin cortes
-        c_check, c_desc = st.columns([2.2, 7.8])
+        c_check, c_desc = st.columns([1.6, 8.4])
         with c_check:
             # Formato visual con sangría si es Tema 2
             if "Tema 2" in dia_nombre:
