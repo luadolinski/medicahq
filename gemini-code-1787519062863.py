@@ -24,64 +24,11 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-# -------------------------------------------------------------
-# IDENTIDADE VISUAL & ERGONOMIA CLÍNICA
-# -------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Fundo da aplicação e tipografia geral */
-    .stApp {
-        background-color: #0F172A !important;
-        color: #E2E8F0 !important;
-    }
-    
-    /* Barra lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #1E293B !important;
-    }
-
-    /* Cartões de métricas (Racha, Precisão, Choices) */
-    div[data-testid="stMetric"] {
-        background-color: #1E293B !important;
-        border: 1px solid #0F766E !important;
-        border-radius: 10px !important;
-        padding: 12px !important;
-    }
-
-    /* Números de destaque em âmbar */
-    div[data-testid="stMetricValue"] {
-        color: #D97706 !important;
-        font-weight: 700 !important;
-    }
-
-    /* Caixas de perguntas e expanders */
-    div[data-testid="stExpander"] {
-        background-color: #1E293B !important;
-        border: 1px solid #334155 !important;
-        border-radius: 8px !important;
-    }
-
-    /* Barra de progresso com o azul cerceta/teal */
-    div[data-testid="stProgress"] > div > div > div > div {
-        background-color: #0F766E !important;
-    }
+...
 </style>
 """, unsafe_allow_html=True)
-
-# -------------------------------------------------------------
-# CONFIGURACIÓN DE GEMINI API (v3.6)
-# -------------------------------------------------------------
-GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-model = None
-if GEMINI_API_KEY:
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-3.6-flash")
-    except Exception:
-        try:
-            model = genai.GenerativeModel("models/gemini-3.6-flash")
-        except Exception:
-            model = None
 
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
