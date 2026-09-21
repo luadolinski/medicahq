@@ -676,7 +676,7 @@ if menu == "🏠 Dashboard & Repaso SRS":
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
 # -------------------------------------------------------------
 elif menu == "📅 Cronograma Semanal Detallado":
-    st.header("📅 Cronograma Interactivo de Estudio (Semanas 1 a 20)")
+    st.header("📅 Cronograma Interactivo de Estudio")
     st.caption("Marcá los temas a medida que los completes para registrar tu avance real.")
 
     # Cargar o inicializar la tabla de progresos
@@ -689,7 +689,7 @@ elif menu == "📅 Cronograma Semanal Detallado":
     completados_set = set(zip(user_prog["semana"].astype(str), user_prog["dia"].astype(str)))
 
     # Métricas globales de avance
-    total_dias_plan = sum(len(dias) for dias in cronograma_desglosado.values())
+    total_dias_plan = sum(len(dias) for dias in cronograma_activo.values())
     total_hechos_usr = len(user_prog)
     pct_global = int((total_hechos_usr / total_dias_plan) * 100) if total_dias_plan > 0 else 0
 
@@ -697,11 +697,11 @@ elif menu == "📅 Cronograma Semanal Detallado":
     with col_p1:
         st.progress(pct_global / 100)
     with col_p2:
-        st.metric("🎯 Progreso Global", f"{pct_global}%", f"{total_hechos_usr}/{total_dias_plan} días")
+        st.metric("🎯 Progreso Global", f"{pct_global}%", f"{total_hechos_usr}/{total_dias_plan} temas")
 
     st.markdown("---")
 
-   # Selector de Semana
+    # Selector de Semana adaptado al plan activo
     sem_select = st.selectbox("Seleccioná la semana a visualizar:", list(cronograma_activo.keys()))
     dias_semana = cronograma_activo[sem_select]
 
@@ -709,7 +709,7 @@ elif menu == "📅 Cronograma Semanal Detallado":
     hechos_esta_semana = sum(1 for item in dias_semana if (sem_select, item["Día"]) in completados_set)
     st.info(f"Avance de esta semana: **{hechos_esta_semana} de {len(dias_semana)} temas completados**.")
 
-    # Lista de temas con checkbox interactivo
+    # Lista de temas en 2 columnas equilibradas (evita que se corte el texto)
     hubo_cambios = False
     for item in dias_semana:
         dia_nombre = item["Día"]
@@ -717,10 +717,17 @@ elif menu == "📅 Cronograma Semanal Detallado":
         clave_tupla = (sem_select, dia_nombre)
         esta_marcado = clave_tupla in completados_set
 
-        c_check, c_desc = st.columns([1, 8])
+        # Columna 1 más ancha (2.2) para que quepa "Miércoles — 📌 Tema 1" completo sin cortes
+        c_check, c_desc = st.columns([2.2, 7.8])
         with c_check:
+            # Formato visual con sangría si es Tema 2
+            if "Tema 2" in dia_nombre:
+                label_check = f"&nbsp;&nbsp;&nbsp;&nbsp;↳ **{dia_nombre.split('—')[-1].strip()}**"
+            else:
+                label_check = f"**{dia_nombre}**"
+
             nuevo_estado = st.checkbox(
-                f"**{dia_nombre}**",
+                label_check,
                 value=esta_marcado,
                 key=f"chk_{sem_select}_{dia_nombre}"
             )
