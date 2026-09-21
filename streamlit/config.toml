@@ -1,6 +1,0 @@
-[theme]
-primaryColor = "#0F766E"             # Teal médico para botones activos, checks y foco
-backgroundColor = "#F8FAFC"          # Fondo blanco hueso / pizarra claro antifatiga
-secondaryBackgroundColor = "#F1F5F9" # Fondo de sidebar, tarjetas y desplegables
-textColor = "#1E293B"                # Pizarra oscuro / grafito de alto confort lector
-font = "sans serif"
