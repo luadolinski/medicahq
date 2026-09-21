@@ -29,6 +29,7 @@ st.markdown("""
 ...
 </style>
 """, unsafe_allow_html=True)
+
 # -------------------------------------------------------------
 # INICIALIZACIÓN DE GEMINI AI
 # -------------------------------------------------------------
@@ -38,9 +39,14 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # Probamos primero con el alias latest, o con gemini-pro como fallback
+        try:
+            model = genai.GenerativeModel("gemini-1.5-flash-latest")
+        except Exception:
+            model = genai.GenerativeModel("gemini-pro")
     except Exception as e:
         model = None
+        
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
