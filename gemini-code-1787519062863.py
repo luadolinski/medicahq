@@ -31,7 +31,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# INICIALIZACIÓN DE GEMINI AI
+# INICIALIZACIÓN DE GEMINI AI (AUTO-DETECCIÓN)
 # -------------------------------------------------------------
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
@@ -39,11 +39,20 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Probamos primero con el alias latest, o con gemini-pro como fallback
+        
+        # 1. Intentar el modelo más eficiente
         try:
-            model = genai.GenerativeModel("gemini-1.5-flash-latest")
+            model = genai.GenerativeModel("gemini-1.5-flash")
         except Exception:
-            model = genai.GenerativeModel("gemini-pro")
+            model = None
+
+        # 2. Si falla o no existe, listar los disponibles para tu clave
+        if not model:
+            for m in genai.list_models():
+                if "generateContent" in m.supported_generation_methods:
+                    # Elige el primer modelo generativo compatible
+                    model = genai.GenerativeModel(m.name)
+                    break
     except Exception as e:
         model = None
         
