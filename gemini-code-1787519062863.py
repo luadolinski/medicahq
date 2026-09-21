@@ -25,59 +25,49 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 # -------------------------------------------------------------
-# IDENTIDAD VISUAL & ERGONOMÍA CLÍNICA
+# IDENTIDADE VISUAL & ERGONOMIA CLÍNICA
 # -------------------------------------------------------------
 st.markdown("""
 <style>
-    /* Estructura general y bordes suaves */
-    .stMetric, .stAlert, div[data-testid="stExpander"] {
-        border-radius: 10px !important;
-        border: 1px solid rgba(15, 118, 110, 0.12) !important;
+    /* Fundo da aplicação e tipografia geral */
+    .stApp {
+        background-color: #0F172A !important;
+        color: #E2E8F0 !important;
+    }
+    
+    /* Barra lateral */
+    section[data-testid="stSidebar"] {
+        background-color: #1E293B !important;
     }
 
-    /* Métrica de avance con acento Ámbar Cálido */
+    /* Cartões de métricas (Racha, Precisão, Choices) */
+    div[data-testid="stMetric"] {
+        background-color: #1E293B !important;
+        border: 1px solid #0F766E !important;
+        border-radius: 10px !important;
+        padding: 12px !important;
+    }
+
+    /* Números de destaque em âmbar */
     div[data-testid="stMetricValue"] {
         color: #D97706 !important;
-        font-weight: 700;
+        font-weight: 700 !important;
     }
 
-    /* Barra de progreso en Teal Médico */
+    /* Caixas de perguntas e expanders */
+    div[data-testid="stExpander"] {
+        background-color: #1E293B !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+    }
+
+    /* Barra de progresso com o azul cerceta/teal */
     div[data-testid="stProgress"] > div > div > div > div {
         background-color: #0F766E !important;
     }
-
-    /* Feedback suave: Salvia (Éxito) */
-    div[data-testid="stAlert"]:has(div[role="alert"]:contains("¡Progreso")) {
-        background-color: #E8F5E9 !important;
-        color: #2E7D32 !important;
-        border-color: #A5D6A7 !important;
-    }
-
-    /* Feedback suave: Terracota (Errores/Alertas) */
-    div[data-testid="stAlert"]:has(.st-ae) {
-        background-color: #FDF2F0 !important;
-        color: #9C4235 !important;
-        border-color: #F5C6CB !important;
-    }
-
-    /* Botones con transición suave y acento visual */
-    .stButton > button {
-        border-radius: 8px !important;
-        font-weight: 600;
-        transition: all 0.2s ease-in-out;
-    }
-    .stButton > button:hover {
-        border-color: #0F766E !important;
-        color: #0F766E !important;
-    }
-
-    /* Ajuste de espaciado y alineación vertical en las filas del cronograma */
-    div[data-testid="stHorizontalBlock"] {
-        align-items: center;
-        padding: 3px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
+
 # -------------------------------------------------------------
 # CONFIGURACIÓN DE GEMINI API (v3.6)
 # -------------------------------------------------------------
