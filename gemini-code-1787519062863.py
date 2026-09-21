@@ -39,17 +39,7 @@ model = None
 if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
-        # Lista os modelos que esta chave realmente tem permissão de usar
-        modelos_validos = [
-            m.name for m in genai.list_models()
-            if "generateContent" in m.supported_generation_methods
-        ]
-        
-        # Prioriza 1.5-flash; se não estiver listado, pega o primeiro gerador disponível
-        flash_match = next((m for m in modelos_validos if "1.5-flash" in m), None)
-        nome_final = flash_match if flash_match else (modelos_validos[0] if modelos_validos else "gemini-1.5-flash")
-        
-        model = genai.GenerativeModel(nome_final)
+        model = genai.GenerativeModel("gemini-3.6-flash")
     except Exception as e:
         model = None
         
