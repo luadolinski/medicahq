@@ -386,7 +386,7 @@ def obtener_cronograma_personalizado(modalidad_plan):
 
 
 def _repartir_en_semanas(lista_items, semanas):
-    """Distribuye los temas de Lunes a Domingo numerando los temas de cada día."""
+    """Distribui os temas agrupando-os de imediato por dia da semana."""
     total = len(lista_items)
     items_por_semana = math.ceil(total / semanas)
     cronograma_res = {}
@@ -398,32 +398,39 @@ def _repartir_en_semanas(lista_items, semanas):
         clave_semana = f"Semana {s} (de {semanas})"
         dias_lista = []
         
-        # Conteo para saber qué número de tema es dentro del mismo día
-        contador_dia = {d: 0 for d in dias_base}
+        # Agrupar temas da semana por cada um dos 7 dias
+        temas_por_dia = {d: [] for d in dias_base}
         
-        for d_idx in range(items_por_semana):
+        for i in range(items_por_semana):
             if idx < total:
-                dia_nombre = dias_base[d_idx % 7]
-                contador_dia[dia_nombre] += 1
-                
-                # Si entran hasta 7 temas por semana, va solo el día
-                if items_por_semana <= 7:
-                    etiqueta_dia = dia_nombre
-                # Si entran más de 7 temas por semana, numera los temas del día
-                else:
-                    etiqueta_dia = f"{dia_nombre} — Tema {contador_dia[dia_nombre]}"
-
-                dias_lista.append({
-                    "Día": etiqueta_dia,
-                    "Tema Específico": lista_items[idx]["tema"]
-                })
+                dia_atribuido = dias_base[i % 7]
+                temas_por_dia[dia_atribuido].append(lista_items[idx]["tema"])
                 idx += 1
+                
+        # Construir os registos mantendo os temas do mesmo dia juntos
+        for dia_nome in dias_base:
+            lista_temas_dia = temas_por_dia[dia_nome]
+            if not lista_temas_dia:
+                continue
+                
+            if len(lista_temas_dia) == 1:
+                dias_lista.append({
+                    "Día": dia_nome,
+                    "Tema Específico": lista_temas_dia[0]
+                })
+            else:
+                for n_tema, texto_tema in enumerate(lista_temas_dia, start=1):
+                    # Identificador visual com seta para subtemas
+                    prefixo = "📌" if n_tema == 1 else "↳"
+                    dias_lista.append({
+                        "Día": f"{dia_nome} — {prefixo} Tema {n_tema}",
+                        "Tema Específico": texto_tema
+                    })
                 
         if dias_lista:
             cronograma_res[clave_semana] = dias_lista
 
     return cronograma_res
-
 # -------------------------------------------------------------
 # CONTROL DE SESIÓN
 # -------------------------------------------------------------
