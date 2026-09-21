@@ -386,24 +386,39 @@ def obtener_cronograma_personalizado(modalidad_plan):
 
 
 def _repartir_en_semanas(lista_items, semanas):
-    """Divide matemáticamente una lista de temas en N semanas."""
+    """Distribuye los temas de Lunes a Domingo numerando los temas de cada día."""
     total = len(lista_items)
     items_por_semana = math.ceil(total / semanas)
     cronograma_res = {}
-    dias_nombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "Refuerzo 1", "Refuerzo 2"]
+    
+    dias_base = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
     idx = 0
     for s in range(1, semanas + 1):
         clave_semana = f"Semana {s} (de {semanas})"
         dias_lista = []
+        
+        # Conteo para saber qué número de tema es dentro del mismo día
+        contador_dia = {d: 0 for d in dias_base}
+        
         for d_idx in range(items_por_semana):
             if idx < total:
-                nombre_dia = dias_nombres[d_idx] if d_idx < len(dias_nombres) else f"Bloque {d_idx+1}"
+                dia_nombre = dias_base[d_idx % 7]
+                contador_dia[dia_nombre] += 1
+                
+                # Si entran hasta 7 temas por semana, va solo el día
+                if items_por_semana <= 7:
+                    etiqueta_dia = dia_nombre
+                # Si entran más de 7 temas por semana, numera los temas del día
+                else:
+                    etiqueta_dia = f"{dia_nombre} — Tema {contador_dia[dia_nombre]}"
+
                 dias_lista.append({
-                    "Día": nombre_dia,
+                    "Día": etiqueta_dia,
                     "Tema Específico": lista_items[idx]["tema"]
                 })
                 idx += 1
+                
         if dias_lista:
             cronograma_res[clave_semana] = dias_lista
 
