@@ -29,7 +29,18 @@ st.markdown("""
 ...
 </style>
 """, unsafe_allow_html=True)
+# -------------------------------------------------------------
+# INICIALIZACIÓN DE GEMINI AI
+# -------------------------------------------------------------
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 
+model = None
+if GEMINI_API_KEY:
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+    except Exception as e:
+        model = None
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
