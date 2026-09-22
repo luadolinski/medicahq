@@ -42,6 +42,60 @@ if GEMINI_API_KEY:
         model = genai.GenerativeModel("gemini-3.6-flash")
     except Exception as e:
         model = None
+
+# -------------------------------------------------------------
+# FUNCIONES IA CON CACHÉ (AQUÍ DEBEN ESTAR)
+# -------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def obtener_algoritmo_cached(tema: str):
+    prompt = f"""
+    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
+    
+    REGLAS DE SINTAXIS ESTRICTAS:
+    1. Empezá con 'graph TD'.
+    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
+    3. Cada conexión DEBE estar en una línea separada.
+    4. NO uses caracteres especiales sin comillas.
+    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
+    """
+    res = model.generate_content(prompt)
+    mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
+    mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
+    mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
+    return mermaid_clean
+
+@st.cache_data(show_spinner=False)
+def obtener_perlas_cached(tema: str):
+    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
+    res = model.generate_content(p_prompt)
+    return res.text
+
+@st.cache_data(show_spinner=False)
+def obtener_comparativa_cached(tema: str):
+    if not model:
+        return "⚠️ Modelo no configurado."
+    c_prompt = (
+        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
+        f"Para el tema '{tema}', presentá una tabla Markdown muy sintética comparando: "
+        f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
+        f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
+    )
+    config = genai.types.GenerationConfig(
+        max_output_tokens=600,
+        temperature=0.2
+    )
+    try:
+        res = model.generate_content(c_prompt, generation_config=config)
+        return res.text
+    except Exception as err:
+        if "429" in str(err):
+            return """| Eje / Criterio | Argentina (Residencias) | Brasil (Revalida / SUS) | Perla de Examen |
+|---|---|---|---|
+| **Conducta Inicial** | Diagnóstico clínico y manejo empírico según guías locales. | Protocolos Clínicos e Diretrizes Terapêuticas (PCDT/MS). | Verificar siempre punto de corte etario y esquema de primera línea. |
+| **Diferencia Clave** | Cobertura PMO / Consensos de sociedades argentinas. | Notificación compulsoria SUS / Medicación estandarizada RENAME. | En Revalida prestar atención a la obligatoriedad de notificación inmediata. |
+
+*(Nota: Comparativa base precargada por límite de cuota diaria de la API).*"""
+        raise err
         
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
@@ -875,6 +929,35 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                             st.warning("⏳ Límite temporal alcanzado. Esperá unos 15 segundos y reintentá.")
                         else:
                             st.error(f"Error generando comparativa: {err}")
+
+    with t4:
+        st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
+        palabras = [w for w in tema_limpio.split() if len(w) > 4][:2]
+        query_kw = palabras[0].lower() if palabras else ""
+        
+        choices_df = get_sheet_data("choices")
+        if not choices_df.empty and "tema" in choices_df.columns:
+            quiz_q = choices_df[choices_df["tema"].astype(str).str.lower().str.contains(query_kw, na=False)].head(5)
+        else:
+            quiz_q = pd.DataFrame()
+
+        if len(quiz_q) == 0:
+            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar preguntas en la solapa '✨ Generador de Choices con IA'.")
+        else:
+            for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
+                st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
+                ans = st.radio(
+                    f"Opciones para P{idx+1}:",
+                    [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
+                    key=f"quiz_din_{q_row['id']}"
+                )
+                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{q_row['id']}"):
+                    if ans[0] == q_row['correcta']:
+                        st.success(f"¡Correcto! Opción {q_row['correcta']}")
+                    else:
+                        st.error(f"Incorrecto. La respuesta oficial era la opción {q_row['correcta']}.")
+                    st.info(q_row['justificacion'])
+                st.markdown("---")
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
