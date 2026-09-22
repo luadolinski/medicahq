@@ -47,80 +47,53 @@ if GEMINI_API_KEY:
 # FUNCIONES IA CON CACHÉ (AQUÍ DEBEN ESTAR)
 # -------------------------------------------------------------
 @st.cache_data(show_spinner=False)
-def obtener_algoritmo_cached(tema: str):
-    if not model:
-        return 'graph TD\n    A["⚠️ API de Gemini no configurada"]'
-    
-    prompt = f"""
-    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
-    
-    REGLAS DE SINTAXIS ESTRICTAS:
-    1. Empezá con 'graph TD'.
-    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
-    3. Cada conexión DEBE estar en una línea separada.
-    4. NO uses caracteres especiales sin comillas.
-    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
-    """
-    try:
-        res = model.generate_content(prompt)
-        mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
-        mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
-        mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
-        return mermaid_clean
-    except Exception as err:
-        if "429" in str(err):
-            return f'graph TD\n    A["{tema}"] --> B["Evaluación Clínica & Sospecha"]\n    B --> C{{"Criterios Diagnósticos"}}\n    C -->|"Positivo"| D["Conducta de Primera Línea"]\n    C -->|"Negativo"| E["Seguimiento / Diagnóstico Diferencial"]\n    D --> F["Nota: Algoritmo base por cuota temporal de API"]'
-        raise err
-
-@st.cache_data(show_spinner=False)
-def obtener_perlas_cached(tema: str):
-    if not model:
-        return "⚠️ Modelo no configurado."
-    
-    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
-    try:
-        res = model.generate_content(p_prompt)
-        return res.text
-    except Exception as err:
-        if "429" in str(err):
-            return (
-                f"**Perlas Clave para {tema} (Modo Contingencia):**\n\n"
-                "- **Diagnóstico inicial:** Priorizar siempre la clínica y el método confirmatorio de elección según consenso local.\n"
-                "- **Tratamiento de 1ª línea:** Verificar esquemas de dosis estándar y contraindicaciones absolutas.\n"
-                "- **Criterios de gravedad:** Reconocer signos de alarma tempranos para internación o derivación oportuna.\n"
-                "- **Trampa de examen:** Distinguir claramente la conducta inicial inmediata vs. el tratamiento definitivo."
-            )
-        raise err
-
-@st.cache_data(show_spinner=False)
 def obtener_comparativa_cached(tema: str):
     if not model:
         return "⚠️ Modelo no configurado."
         
-    c_prompt = (
-        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
-        f"Para el tema '{tema}', presentá una tabla Markdown completa y sintética comparando: "
-        f"1) Subtema/Criterio, 2) Conducta Argentina (Sociedades Científicas/MSAL), 3) Conducta Brasil (SUS/PCDT/MS), 4) Perla Clave para Examen. "
-        f"Si el manejo es idéntico, aclaralo brevemente en la fila correspondiente. "
-        f"Sé directo, conciso y asegurate de cerrar la tabla por completo."
-    )
+    c_prompt = f"""
+    Actuá como un docente médico especialista en el Examen Único de Residencias Médicas de Argentina y en el Revalida de Brasil.
     
-    config = genai.types.GenerationConfig(
-        max_output_tokens=1500,
-        temperature=0.2
-    )
+    Analizá el tema: '{tema}'.
+    
+    Estructurá tu respuesta de forma clara, didáctica y completa con las siguientes secciones:
+    
+    1. 🇦🇷 Conducta y Guías en Argentina:
+       - Criterios diagnósticos y estratificación de riesgo según el Ministerio de Salud de la Nación (MSAL) y consensos de sociedades argentinas.
+       - Tratamiento y fármacos de 1ª línea según cobertura habitual.
+       
+    2. 🇧🇷 Conduta e Diretrizes no Brasil:
+       - Protocolos Clínicos e Diretrizes Terapêuticas (PCDT / Ministério da Saúde / SUS).
+       - Esquema terapéutico de elección y disponibilidad en APS / RENAME.
+       - Notificación compulsoria (si corresponde y plazos).
+       
+    3. ⚖️ Puntos de Conflicto y Diferencias Clave (AR vs BR):
+       - Explicá detalladamente dónde difieren ambos países (puntos de corte de edad, esquemas antibióticos distintos, conductas quirúrgicas vs expectantes).
+       
+    4. 💡 Perlas de Examen:
+       - Trampas clásicas de preguntas choice para Residencias AR y Revalida BR.
+    """
+    
     try:
-        res = model.generate_content(c_prompt, generation_config=config)
+        # LLAMADA LIMPIA SIN NINGÚN TOPE DE TOKENS
+        res = model.generate_content(c_prompt)
         return res.text
     except Exception as err:
         if "429" in str(err):
-            return f"""| Subtema / Criterio | Conducta Argentina | Conducta Brasil (SUS/MS) | Perla Clave para Examen |
-|---|---|---|---|
-| **Definición y Enfoque Inicial** | Manejo guiado por consensos nacionales y guías de práctica clínica locales. | Protocolos Clínicos e Diretrizes Terapêuticas (PCDT / Ministério da Saúde). | Verificar siempre puntos de corte etarios y estratificación de riesgo según el examen. |
-| **Fármacos de Primera Línea** | Esquemas estandarizados por vademécum nacional y cobertura PMO. | Fármacos estandarizados en la RENAME (Relação Nacional de Medicamentos Essenciais). | En Brasil se evalúa con frecuencia la disponibilidad específica de drogas en la APS/SUS. |
-| **Notificación y Seguimiento** | Notificación obligatoria según Sistema Nacional de Vigilancia de la Salud (SNVS). | Notificação compulsória imediata/semanal según el Sinan. | En Revalida prestar especial atención a los plazos estrictos de notificación (ej. 24 hs). |
+            return f"""### ⚖️ Comparativa Rápida (Modo Contingencia): {tema}
+            
+**1. 🇦🇷 Enfoque Argentina (MSAL / Sociedades Científicas):**
+- Manejo inicial según guías de práctica clínica locales y cobertura PMO.
+- Tratamiento empírico de primera línea estandarizado según consensos nacionales.
 
-*(Nota: Comparativa base precargada por límite temporal de peticiones en la API).*"""
+**2. 🇧🇷 Enfoque Brasil (SUS / PCDT / Ministério da Saúde):**
+- Protocolo estandarizado por el Ministerio de Salud (PCDT).
+- Medicación garantizada por la red pública (RENAME) y vigilancia epidemiológica estricta vía Sinan.
+
+**3. ⚖️ Diferencia Crítica de Examen:**
+- Verificar esquemas antibióticos de primera línea y criterios de notificación obligatoria inmediata.
+
+*(Nota: Respuesta base temporal por límite de cuota de la API).*"""
         raise err
                                                                   
 # -------------------------------------------------------------
