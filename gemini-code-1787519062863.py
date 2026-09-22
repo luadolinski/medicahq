@@ -52,50 +52,34 @@ def obtener_comparativa_cached(tema: str):
         return "⚠️ Modelo no configurado."
         
     c_prompt = f"""
-    Actuá como un docente médico especialista en el Examen Único de Residencias Médicas de Argentina y en el Revalida de Brasil.
+    Sos un docente médico especialista en el Examen Único de Residencias Médicas de Argentina y en el Revalida de Brasil.
     
-    Analizá el tema: '{tema}'.
+    Analizá detalladamente el tema: '{tema}'.
     
-    Estructurá tu respuesta de forma clara, didáctica y completa con las siguientes secciones:
+    Quiero un análisis clínico exhaustivo, preciso y con diferencias concretas de conducta médica (dosis, esquemas de primera línea, puntos de corte, criterios de internación y guías oficiales).
     
-    1. 🇦🇷 Conducta y Guías en Argentina:
-       - Criterios diagnósticos y estratificación de riesgo según el Ministerio de Salud de la Nación (MSAL) y consensos de sociedades argentinas.
-       - Tratamiento y fármacos de 1ª línea según cobertura habitual.
+    Estructurá tu respuesta con los siguientes puntos:
+    
+    1. 🇦🇷 Conducta y Protocolos en Argentina:
+       - Criterios diagnósticos y clasificación según Ministerio de Salud de la Nación (MSAL) y consensos de sociedades científicas (ej. FASGO, SADI, SATI).
+       - Esquema terapéutico de 1ª elección exacto (fármaco, dosis, vía y duración).
+       - Criterios de internación vs. manejo ambulatorio.
        
     2. 🇧🇷 Conduta e Diretrizes no Brasil:
        - Protocolos Clínicos e Diretrizes Terapêuticas (PCDT / Ministério da Saúde / SUS).
-       - Esquema terapéutico de elección y disponibilidad en APS / RENAME.
-       - Notificación compulsoria (si corresponde y plazos).
+       - Esquema terapéutico de 1ª escolha da RENAME/SUS (medicamentos exatos, posologia).
+       - Notificação compulsória (se é de notificação imediata em 24h ou semanal pelo Sinan).
        
-    3. ⚖️ Puntos de Conflicto y Diferencias Clave (AR vs BR):
-       - Explicá detalladamente dónde difieren ambos países (puntos de corte de edad, esquemas antibióticos distintos, conductas quirúrgicas vs expectantes).
+    3. ⚖️ Diferencias Críticas y Puntos de Conflicto (AR vs BR):
+       - Contrastá punto por punto: ¿dónde difieren los esquemas antibióticos o farmacológicos?, ¿qué conducta es más conservadora o intervencionista?, ¿qué fármacos disponibles en un país no son de primera línea en el otro?
        
-    4. 💡 Perlas de Examen:
-       - Trampas clásicas de preguntas choice para Residencias AR y Revalida BR.
+    4. 💡 Perlas de Examen (High-Yield):
+       - Trampas clásicas de examen choice para el Examen Único de Argentina.
+       - Trampas y pegadinhas clásicas de examen para el Revalida (INEP/SUS).
     """
     
-    try:
-        # LLAMADA LIMPIA SIN NINGÚN TOPE DE TOKENS
-        res = model.generate_content(c_prompt)
-        return res.text
-    except Exception as err:
-        if "429" in str(err):
-            return f"""### ⚖️ Comparativa Rápida (Modo Contingencia): {tema}
-            
-**1. 🇦🇷 Enfoque Argentina (MSAL / Sociedades Científicas):**
-- Manejo inicial según guías de práctica clínica locales y cobertura PMO.
-- Tratamiento empírico de primera línea estandarizado según consensos nacionales.
-
-**2. 🇧🇷 Enfoque Brasil (SUS / PCDT / Ministério da Saúde):**
-- Protocolo estandarizado por el Ministerio de Salud (PCDT).
-- Medicación garantizada por la red pública (RENAME) y vigilancia epidemiológica estricta vía Sinan.
-
-**3. ⚖️ Diferencia Crítica de Examen:**
-- Verificar esquemas antibióticos de primera línea y criterios de notificación obligatoria inmediata.
-
-*(Nota: Respuesta base temporal por límite de cuota de la API).*"""
-        raise err
-                                                                  
+    res = model.generate_content(c_prompt)
+    return res.text
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
@@ -878,13 +862,13 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             if not model:
                 st.error("API de Gemini no configurada.")
             else:
-                with st.spinner("Cargando comparativa de consensos sanitarios..."):
+                with st.spinner("Generando análisis comparativo exhaustivo con IA..."):
                     try:
                         comparativa = obtener_comparativa_cached(tema_limpio)
                         st.markdown(comparativa)
                     except Exception as err:
                         if "429" in str(err):
-                            st.warning("⏳ Límite temporal alcanzado. Esperá unos 15 segundos y reintentá.")
+                            st.warning("⏳ Se alcanzó el límite temporal de peticiones por minuto. Esperá 20 segundos y volvé a presionar el botón.")
                         else:
                             st.error(f"Error generando comparativa: {err}")
 
