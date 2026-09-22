@@ -764,7 +764,48 @@ elif menu == "📅 Cronograma Semanal Detallado":
         save_sheet_data("progreso_temas", progreso_df)
         st.success("¡Progreso actualizado y guardado en Google Sheets!")
         st.rerun()
+# -------------------------------------------------------------
+# FUNCIONES IA CON CACHÉ (Ahorro de Cuota API)
+# -------------------------------------------------------------
+@st.cache_data(show_spinner=False)
+def obtener_algoritmo_cached(tema: str):
+    prompt = f"""
+    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
+    
+    REGLAS DE SINTAXIS ESTRICTAS:
+    1. Empezá con 'graph TD'.
+    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
+    3. Cada conexión DEBE estar en una línea separada.
+    4. NO uses caracteres especiales sin comillas.
+    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
+    """
+    res = model.generate_content(prompt)
+    mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
+    mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
+    mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
+    return mermaid_clean
 
+@st.cache_data(show_spinner=False)
+def obtener_perlas_cached(tema: str):
+    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
+    res = model.generate_content(p_prompt)
+    return res.text
+
+@st.cache_data(show_spinner=False)
+def obtener_comparativa_cached(tema: str):
+    c_prompt = (
+        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
+        f"Para el tema '{tema}', presentá una tabla Markdown muy sintética comparando: "
+        f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
+        f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
+    )
+    config = genai.types.GenerationConfig(
+        max_output_tokens=600,
+        temperature=0.2
+    )
+    res = model.generate_content(c_prompt, generation_config=config)
+    return res.text
+    
 # -------------------------------------------------------------
 # 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
 # -------------------------------------------------------------
@@ -789,35 +830,19 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
 
     with t1:
         st.subheader("Algoritmo Clínico Interactivo")
-        
         if st.button("✨ Generar Algoritmo con IA para este tema", key="btn_algo_dinamico"):
             if not model:
                 st.error("Error: Verificá que tu API Key de Gemini esté en Secrets.")
             else:
-                with st.spinner(f"Diseñando diagrama de flujo para: {tema_limpio[:50]}..."):
-                    prompt = f"""
-                    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema_limpio}.
-                    
-                    REGLAS DE SINTAXIS ESTRICTAS:
-                    1. Empezá con 'graph TD'.
-                    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
-                    3. Cada conexión DEBE estar en una línea separada.
-                    4. NO uses caracteres especiales sin comillas.
-                    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
-                    """
+                with st.spinner(f"Cargando algoritmo para: {tema_limpio[:50]}..."):
                     try:
-                        res = model.generate_content(prompt)
-                        mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
-                        mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
-                        mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
-
-                        st.markdown(f"""
-                        ```mermaid
-                        {mermaid_clean}
-                        ```
-                        """)
+                        mermaid_clean = obtener_algoritmo_cached(tema_limpio)
+                        st.markdown(f"```mermaid\n{mermaid_clean}\n```")
                     except Exception as err:
-                        st.error(f"Error generando algoritmo: {err}")
+                        if "429" in str(err):
+                            st.warning("⏳ Límite temporal alcanzado. Esperá unos 15 segundos y reintentá.")
+                        else:
+                            st.error(f"Error generando algoritmo: {err}")
 
     with t2:
         st.subheader("⚡ Resumen High-Yield & Perlas Clave")
@@ -825,13 +850,15 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             if not model:
                 st.error("API de Gemini no configurada.")
             else:
-                with st.spinner("Extrayendo conceptos más tomados..."):
-                    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema_limpio}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
+                with st.spinner("Cargando perlas clínicas..."):
                     try:
-                        p_res = model.generate_content(p_prompt)
-                        st.markdown(p_res.text)
+                        perlas = obtener_perlas_cached(tema_limpio)
+                        st.markdown(perlas)
                     except Exception as err:
-                        st.error(f"Error: {err}")
+                        if "429" in str(err):
+                            st.warning("⏳ Límite temporal alcanzado. Esperá unos 15 segundos y reintentá.")
+                        else:
+                            st.error(f"Error: {err}")
 
     with t3:
         st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
@@ -839,57 +866,15 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
             if not model:
                 st.error("API de Gemini no configurada.")
             else:
-                with st.spinner("Comparando protocolos sanitarios..."):
-                    c_prompt = (
-                        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
-                        f"Para el tema '{tema_limpio}', presentá una tabla Markdown muy sintética comparando: "
-                        f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
-                        f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
-                    )
+                with st.spinner("Cargando comparativa de consensos sanitarios..."):
                     try:
-                        config = genai.types.GenerationConfig(
-                            max_output_tokens=600,
-                            temperature=0.2
-                        )
-                        c_res = model.generate_content(c_prompt, generation_config=config, stream=True)
-                        
-                        def stream_text():
-                            for chunk in c_res:
-                                if chunk.text:
-                                    yield chunk.text
-                                    
-                        st.write_stream(stream_text)
+                        comparativa = obtener_comparativa_cached(tema_limpio)
+                        st.markdown(comparativa)
                     except Exception as err:
-                        st.error(f"Error generando comparativa: {err}")
-
-    with t4:
-        st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
-        palabras = [w for w in tema_limpio.split() if len(w) > 4][:2]
-        query_kw = palabras[0].lower() if palabras else ""
-        
-        choices_df = get_sheet_data("choices")
-        if not choices_df.empty and "tema" in choices_df.columns:
-            quiz_q = choices_df[choices_df["tema"].astype(str).str.lower().str.contains(query_kw, na=False)].head(5)
-        else:
-            quiz_q = pd.DataFrame()
-
-        if len(quiz_q) == 0:
-            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar preguntas en la solapa '✨ Generador de Choices con IA'.")
-        else:
-            for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
-                st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
-                ans = st.radio(
-                    f"Opciones para P{idx+1}:",
-                    [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
-                    key=f"quiz_din_{q_row['id']}"
-                )
-                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{q_row['id']}"):
-                    if ans[0] == q_row['correcta']:
-                        st.success(f"¡Correcto! Opción {q_row['correcta']}")
-                    else:
-                        st.error(f"Incorrecto. La respuesta oficial era la opción {q_row['correcta']}.")
-                    st.info(q_row['justificacion'])
-                st.markdown("---")
+                        if "429" in str(err):
+                            st.warning("⏳ Límite temporal alcanzado. Esperá unos 15 segundos y reintentá.")
+                        else:
+                            st.error(f"Error generando comparativa: {err}")
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
