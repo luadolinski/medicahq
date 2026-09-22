@@ -47,6 +47,35 @@ if GEMINI_API_KEY:
 # FUNCIONES IA CON CACHÉ (AQUÍ DEBEN ESTAR)
 # -------------------------------------------------------------
 @st.cache_data(show_spinner=False)
+def obtener_algoritmo_cached(tema: str):
+    if not model:
+        return 'graph TD\n    A["⚠️ API de Gemini no configurada"]'
+    
+    prompt = f"""
+    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
+    
+    REGLAS DE SINTAXIS ESTRICTAS:
+    1. Empezá con 'graph TD'.
+    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
+    3. Cada conexión DEBE estar en una línea separada.
+    4. NO uses caracteres especiales sin comillas.
+    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
+    """
+    res = model.generate_content(prompt)
+    mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
+    mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
+    mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
+    return mermaid_clean
+
+@st.cache_data(show_spinner=False)
+def obtener_perlas_cached(tema: str):
+    if not model:
+        return "⚠️ Modelo no configurado."
+    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
+    res = model.generate_content(p_prompt)
+    return res.text
+
+@st.cache_data(show_spinner=False)
 def obtener_comparativa_cached(tema: str):
     if not model:
         return "⚠️ Modelo no configurado."
@@ -77,7 +106,6 @@ def obtener_comparativa_cached(tema: str):
        - Trampas clásicas de examen choice para el Examen Único de Argentina.
        - Trampas y pegadinhas clásicas de examen para el Revalida (INEP/SUS).
     """
-    
     res = model.generate_content(c_prompt)
     return res.text
 # -------------------------------------------------------------
