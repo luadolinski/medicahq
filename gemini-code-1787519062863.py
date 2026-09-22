@@ -834,18 +834,38 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                         st.error(f"Error: {err}")
 
     with t3:
-        st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
-        if st.button("✨ Comparar Enfoque AR vs BR con IA", key="btn_comp"):
-            if not model:
-                st.error("API de Gemini no configurada.")
-            else:
-                with st.spinner("Comparando protocolos sanitarios..."):
-                    c_prompt = f"Explicá brevemente las diferencias clave de protocolo o guías clínicas entre Argentina y Brasil para '{tema_limpio}'. Si son idénticos, indicalo."
-                    try:
-                        c_res = model.generate_content(c_prompt)
-                        st.markdown(c_res.text)
-                    except Exception as err:
-                        st.error(f"Error: {err}")
+    st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
+    if st.button("✨ Comparar Enfoque AR vs BR con IA", key="btn_comp"):
+        if not model:
+            st.error("API de Gemini no configurada.")
+        else:
+            with st.spinner("Comparando protocolos sanitarios..."):
+                c_prompt = (
+                    f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
+                    f"Para el tema '{tema_limpio}', presentá una tabla Markdown muy sintética comparando: "
+                    f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
+                    f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
+                )
+                try:
+                    # Configuración para respuesta rápida y sin desbordes
+                    config = genai.types.GenerationConfig(
+                        max_output_tokens=600,
+                        temperature=0.2
+                    )
+                    
+                    # Llamada en streaming para evitar timeouts
+                    c_res = model.generate_content(c_prompt, generation_config=config, stream=True)
+                    
+                    # Generador para mostrar el texto a medida que llega
+                    def stream_text():
+                        for chunk in c_res:
+                            if chunk.text:
+                                yield chunk.text
+                                
+                    st.write_stream(stream_text)
+                except Exception as err:
+                    st.error(f"Error generando comparativa: {err}")
+                    
 
     with t4:
         st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
