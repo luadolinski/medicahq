@@ -818,48 +818,7 @@ elif menu == "📅 Cronograma Semanal Detallado":
         save_sheet_data("progreso_temas", progreso_df)
         st.success("¡Progreso actualizado y guardado en Google Sheets!")
         st.rerun()
-# -------------------------------------------------------------
-# FUNCIONES IA CON CACHÉ (Ahorro de Cuota API)
-# -------------------------------------------------------------
-@st.cache_data(show_spinner=False)
-def obtener_algoritmo_cached(tema: str):
-    prompt = f"""
-    Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
-    
-    REGLAS DE SINTAXIS ESTRICTAS:
-    1. Empezá con 'graph TD'.
-    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
-    3. Cada conexión DEBE estar en una línea separada.
-    4. NO uses caracteres especiales sin comillas.
-    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
-    """
-    res = model.generate_content(prompt)
-    mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
-    mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
-    mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
-    return mermaid_clean
 
-@st.cache_data(show_spinner=False)
-def obtener_perlas_cached(tema: str):
-    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
-    res = model.generate_content(p_prompt)
-    return res.text
-
-@st.cache_data(show_spinner=False)
-def obtener_comparativa_cached(tema: str):
-    c_prompt = (
-        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
-        f"Para el tema '{tema}', presentá una tabla Markdown muy sintética comparando: "
-        f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
-        f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
-    )
-    config = genai.types.GenerationConfig(
-        max_output_tokens=600,
-        temperature=0.2
-    )
-    res = model.generate_content(c_prompt, generation_config=config)
-    return res.text
-    
 # -------------------------------------------------------------
 # 3. TEMARIO, ALGORITMOS & QUIZ RÁPIDO
 # -------------------------------------------------------------
