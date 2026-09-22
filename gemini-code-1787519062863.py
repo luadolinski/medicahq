@@ -48,6 +48,9 @@ if GEMINI_API_KEY:
 # -------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def obtener_algoritmo_cached(tema: str):
+    if not model:
+        return 'graph TD\n    A["⚠️ API de Gemini no configurada"]'
+    
     prompt = f"""
     Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
     
@@ -58,45 +61,10 @@ def obtener_algoritmo_cached(tema: str):
     4. NO uses caracteres especiales sin comillas.
     5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
     """
-    res = model.generate_content(prompt)
-    mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
-    mermaid_clean = re.sub(r'(\})\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_code)
-    mermaid_clean = re.sub(r'(\])\s*([A-Za-z0-9_]+)', r'\1\n\2', mermaid_clean)
-    return mermaid_clean
-
-@st.cache_data(show_spinner=False)
-def obtener_perlas_cached(tema: str):
-    p_prompt = f"Generá 4 perlas clínicas clave y de alta incidencia sobre '{tema}' para exámenes de residencia médica. Sé directo, concreto y enumerá en viñetas con negrita."
-    res = model.generate_content(p_prompt)
-    return res.text
-
-@st.cache_data(show_spinner=False)
-def obtener_comparativa_cached(tema: str):
-    if not model:
-        return "⚠️ Modelo no configurado."
-    c_prompt = (
-        f"Sos un experto en exámenes médicos de Residencias en Argentina y Revalida en Brasil. "
-        f"Para el tema '{tema}', presentá una tabla Markdown muy sintética comparando: "
-        f"1) Guía/Conducta en Argentina, 2) Guía/Conducta en Brasil (SUS/MS), 3) Perla clave para examen. "
-        f"Si el manejo es idéntico, aclaralo en 2 líneas. Sé directo, breve y sin introducciones."
-    )
-    config = genai.types.GenerationConfig(
-        max_output_tokens=600,
-        temperature=0.2
-    )
     try:
-        res = model.generate_content(c_prompt, generation_config=config)
-        return res.text
-    except Exception as err:
-        if "429" in str(err):
-            return """| Eje / Criterio | Argentina (Residencias) | Brasil (Revalida / SUS) | Perla de Examen |
-|---|---|---|---|
-| **Conducta Inicial** | Diagnóstico clínico y manejo empírico según guías locales. | Protocolos Clínicos e Diretrizes Terapêuticas (PCDT/MS). | Verificar siempre punto de corte etario y esquema de primera línea. |
-| **Diferencia Clave** | Cobertura PMO / Consensos de sociedades argentinas. | Notificación compulsoria SUS / Medicación estandarizada RENAME. | En Revalida prestar atención a la obligatoriedad de notificación inmediata. |
-
-*(Nota: Comparativa base precargada por límite de cuota diaria de la API).*"""
-        raise err
-        
+        res = model.generate_content(prompt)
+        mermaid_code = res.text.replace("```mermaid", "").replace("
+                                                                  
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
