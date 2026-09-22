@@ -833,7 +833,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                     except Exception as err:
                         st.error(f"Error: {err}")
 
-   with t3:
+    with t3:
         st.subheader("⚖️ Diferencias Normativas Argentina vs. Brasil")
         if st.button("✨ Comparar Enfoque AR vs BR con IA", key="btn_comp"):
             if not model:
