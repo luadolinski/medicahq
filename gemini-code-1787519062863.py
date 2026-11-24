@@ -901,6 +901,65 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
     tema_limpio = tema_dia_sel.split(":", 1)[1].strip() if ":" in tema_dia_sel else tema_dia_sel
 
     st.markdown(f"### 🎯 Estudiando: *{tema_limpio[:70]}...*")
+    # -------------------------------------------------------------
+    # REPASO ESPACIADO AUTOMÁTICO (VENCIMIENTOS DEL DÍA - SM2)
+    # -------------------------------------------------------------
+    with st.expander("🔁 Repaso Espaciado Automático (Preguntas de Bloques Anteriores)", expanded=False):
+        df_choices_srs = get_sheet_data("choices")
+        hoy_str = datetime.now().strftime("%Y-%m-%d")
+
+        if df_choices_srs.empty or "next_review" not in df_choices_srs.columns:
+            st.info("No se detectó la columna 'next_review' en choices.")
+        else:
+            df_vencidas = df_choices_srs[
+                df_choices_srs["next_review"].astype(str).str.strip().ne("") &
+                (df_choices_srs["next_review"].astype(str) <= hoy_str)
+            ].copy()
+
+            palabras_hoy = [w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{5,}\b', tema_limpio)]
+            if palabras_hoy and not df_vencidas.empty:
+                patron_hoy = "|".join(palabras_hoy[:3])
+                df_vencidas = df_vencidas[
+                    ~df_vencidas["tema"].astype(str).str.lower().str.contains(patron_hoy, na=False)
+                ]
+
+            df_vencidas = df_vencidas.reset_index(drop=True)
+
+            if df_vencidas.empty:
+                st.success("✅ No tenés repasos vencidos de días anteriores para hoy. ¡Podés avanzar directo con el tema del día!")
+            else:
+                st.warning(f"📌 Tenés **{len(df_vencidas)} preguntas de bloques anteriores** programadas para recuperar hoy antes de avanzar:")
+                idx_srs = st.selectbox(
+                    "Elegí pregunta vencida para recuperar de memoria:",
+                    range(len(df_vencidas)),
+                    format_func=lambda i: f"Repaso #{i+1} — {df_vencidas.iloc[i]['area']} ({df_vencidas.iloc[i]['examen_origen']})",
+                    key=f"srs_sel_{tema_limpio[:20]}"
+                )
+                q_srs = df_vencidas.iloc[idx_srs]
+
+                st.markdown(f"**{q_srs['pregunta']}**")
+                opts_srs = [
+                    f"A) {q_srs['opcion_a']}",
+                    f"B) {q_srs['opcion_b']}",
+                    f"C) {q_srs['opcion_c']}",
+                    f"D) {q_srs['opcion_d']}"
+                ]
+                resp_srs = st.radio("Tu respuesta de memoria:", opts_srs, key=f"srs_rad_{q_srs['id']}")
+
+                if st.button("Confirmar y Reprogramar Repaso", key=f"srs_btn_{q_srs['id']}"):
+                    elegida_srs = resp_srs[0]
+                    correcta_srs = str(q_srs["correcta"]).strip().upper()
+                    acerto_srs = 1 if elegida_srs == correcta_srs else 0
+
+                    actualizar_srs_choice(str(q_srs["id"]), acerto_srs)
+
+                    if acerto_srs:
+                        st.success(f"🎉 ¡Bien recordado! ({correcta_srs}). Se reprogramó su próximo repaso automáticamente.")
+                    else:
+                        st.error(f"❌ Incorrecto (era {correcta_srs}). Quedó programada para volver a repasarla mañana.")
+
+                    st.markdown(f"📌 **Tema:** *{q_srs['tema']}*")
+                    st.info(f"**Justificación:** {q_srs['justificacion']}") 
 
     t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
 
