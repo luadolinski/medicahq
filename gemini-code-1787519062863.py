@@ -887,22 +887,10 @@ elif menu == "📅 Cronograma Semanal Detallado":
 # -------------------------------------------------------------
 elif menu == "📚 Temario, Algoritmos & Quiz":
     st.header("📚 Temario Clínico, Algoritmos & Autoevaluación")
-    st.caption("Seleccioná la semana y el tema específico del cronograma para estudiar o autoevaluarte.")
+    st.caption("Primero el repaso diario de memoria; debajo elegí la semana y el tema del día para estudiar y hacer el quiz.")
 
-    col_t1, col_t2 = st.columns(2)
-    with col_t1:
-        semana_estudio = st.selectbox("1. Elegí la Semana de Estudio:", list(cronograma_desglosado.keys()))
-    
-    temas_de_la_semana = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_estudio]]
-    
-    with col_t2:
-        tema_dia_sel = st.selectbox("2. Elegí el Tema del Día:", temas_de_la_semana)
-
-    tema_limpio = tema_dia_sel.split(":", 1)[1].strip() if ":" in tema_dia_sel else tema_dia_sel
-
-    st.markdown(f"### 🎯 Estudiando: *{tema_limpio[:70]}...*")
     # -------------------------------------------------------------
-    # REPASO ESPACIADO AUTOMÁTICO (VENCIMIENTOS DEL DÍA - SM2)
+    # 1) REPASO ESPACIADO AUTOMÁTICO (ARRIBA DE TODO - VENCIMIENTOS SM2)
     # -------------------------------------------------------------
     with st.expander("🔁 Repaso Espaciado Automático (Preguntas de Bloques Anteriores)", expanded=False):
         df_choices_srs = get_sheet_data("choices")
@@ -922,13 +910,6 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                 reps_num = pd.to_numeric(df_vencidas["repetitions"], errors="coerce").fillna(0)
                 df_vencidas = df_vencidas[reps_num > 0].copy()
 
-            palabras_hoy = [w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{5,}\b', tema_limpio)]
-            if palabras_hoy and not df_vencidas.empty:
-                patron_hoy = "|".join(palabras_hoy[:3])
-                df_vencidas = df_vencidas[
-                    ~df_vencidas["tema"].astype(str).str.lower().str.contains(patron_hoy, na=False)
-                ]
-
             df_vencidas = df_vencidas.reset_index(drop=True)
 
             if df_vencidas.empty:
@@ -939,7 +920,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                     "Elegí pregunta vencida para recuperar de memoria:",
                     range(len(df_vencidas)),
                     format_func=lambda i: f"Repaso #{i+1} — {df_vencidas.iloc[i]['area']} ({df_vencidas.iloc[i]['examen_origen']})",
-                    key=f"srs_sel_{tema_limpio[:20]}"
+                    key="srs_sel_top"
                 )
                 q_srs = df_vencidas.iloc[idx_srs]
 
@@ -965,9 +946,27 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                         st.error(f"❌ Incorrecto (era {correcta_srs}). Quedó programada para volver a repasarla mañana.")
 
                     st.markdown(f"📌 **Tema:** *{q_srs['tema']}*")
-                    st.info(f"**Justificación:** {q_srs['justificacion']}") 
-                    
-    t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema "])
+                    st.info(f"**Justificación:** {q_srs['justificacion']}")
+
+    st.markdown("---")
+
+    # -------------------------------------------------------------
+    # 2) SELECCIÓN DE SEMANA Y TEMA DEL DÍA (ABAJO)
+    # -------------------------------------------------------------
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        semana_estudio = st.selectbox("1. Elegí la Semana de Estudio:", list(cronograma_desglosado.keys()))
+    
+    temas_de_la_semana = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_estudio]]
+    
+    with col_t2:
+        tema_dia_sel = st.selectbox("2. Elegí el Tema del Día:", temas_de_la_semana)
+
+    tema_limpio = tema_dia_sel.split(":", 1)[1].strip() if ":" in tema_dia_sel else tema_dia_sel
+
+    st.markdown(f"### 🎯 Estudiando: *{tema_limpio[:70]}...*")
+
+    t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema"])
 
     with t1:
         st.subheader("Algoritmo Clínico Interactivo")
@@ -1015,8 +1014,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                         if "429" in str(err):
                             st.warning("⏳ Se alcanzó el límite temporal de peticiones por minuto. Esperá 20 segundos y volvé a presionar el botón.")
                         else:
-                            st.error(f"Error generando comparativa: {err}")
-
+                            st.error(f"Error generando comparativa: {err}") 
     with t4:
         st.subheader("🎯 Quiz Rápido del Tema")
 
