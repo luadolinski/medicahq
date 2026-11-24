@@ -108,6 +108,58 @@ def obtener_comparativa_cached(tema: str):
     """
     res = model.generate_content(c_prompt)
     return res.text
+
+def actualizar_srs_choice(choice_id: str, es_correcta: int):
+    """Actualiza next_review, interval_days, ease_factor y repetitions en la hoja 'choices'."""
+    df_c = get_sheet_data("choices")
+    if df_c.empty or "id" not in df_c.columns:
+        return
+
+    mask = df_c["id"].astype(str) == str(choice_id)
+    if not mask.any():
+        return
+
+    idx = df_c[mask].index[0]
+    hoy = datetime.now().date()
+
+    try:
+        reps = int(float(df_c.at[idx, "repetitions"])) if pd.notna(df_c.at[idx, "repetitions"]) else 0
+    except Exception:
+        reps = 0
+
+    try:
+        interval = int(float(df_c.at[idx, "interval_days"])) if pd.notna(df_c.at[idx, "interval_days"]) else 1
+    except Exception:
+        interval = 1
+
+    try:
+        ef = float(str(df_c.at[idx, "ease_factor"]).replace(",", ".")) if pd.notna(df_c.at[idx, "ease_factor"]) else 2.5
+    except Exception:
+        ef = 2.5
+
+    if es_correcta == 1:
+        if reps == 0:
+            interval = 2
+        elif reps == 1:
+            interval = 6
+        else:
+            interval = max(1, round(interval * ef))
+        reps += 1
+        ef = max(1.3, round(ef + 0.1, 2))
+    else:
+        reps = 0
+        interval = 1
+        ef = max(1.3, round(ef - 0.2, 2))
+
+    proxima_fecha = (hoy + timedelta(days=interval)).strftime("%Y-%m-%d")
+
+    df_c.at[idx, "repetitions"] = reps
+    df_c.at[idx, "interval_days"] = interval
+    df_c.at[idx, "ease_factor"] = ef
+    df_c.at[idx, "next_review"] = proxima_fecha
+
+    save_sheet_data("choices", df_c)
+    
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
