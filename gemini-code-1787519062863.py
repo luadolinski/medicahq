@@ -1079,7 +1079,9 @@ elif menu == "📚 Algoritmos y Quiz Diario":
 
             df_busqueda["_score"] = scores
             df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False)
-            quiz_q = df_filtradas.drop(columns=["_score"]).head(cant_preguntas)
+            pool_tema = df_filtradas.drop(columns=["_score"]).head(max(cant_preguntas * 3, 30))
+            seed_usr = st.session_state.setdefault(f"seed_t4_{tema_limpio[:15]}", random.randint(1, 99999))
+            quiz_q = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr) 
 
         if quiz_q.empty:
             st.info(
@@ -1245,7 +1247,7 @@ elif menu == "✨ Generador de Choices con IA":
                     st.error(f"Error procesando la respuesta de la IA: {e}")
 
 # -------------------------------------------------------------
-# 5. BANCO DE CHOICES & SIMULACROS (FILTRO PAÍS + TEMA + MODO CIEGO)
+# 5. BANCO DE CHOICES & SIMULACROS (SEMANA COMPLETA + ALEATORIO REAL)
 # -------------------------------------------------------------
 elif menu == "📝 Banco de Choices & Simulacros":
     st.header("📝 Banco de Choices & Simulacros")
@@ -1256,7 +1258,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
     else:
         # 1. Filtro inteligente según el país elegido en la barra lateral
         df_activa = choices_df.copy()
-        
+
         if filtro_pais == "🇦🇷 Solo Argentina":
             patron_ar = "unico|único|caba|eres|argentina"
             df_activa = df_activa[df_activa["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
@@ -1267,6 +1269,9 @@ elif menu == "📝 Banco de Choices & Simulacros":
         if df_activa.empty:
             st.warning(f"No hay preguntas cargadas que coincidan con el filtro '{filtro_pais}'. Podés cambiar a 'Modo Dual' en la barra lateral.")
         else:
+            # Semilla aleatoria propia de la sesión actual de este usuario
+            seed_banco = st.session_state.setdefault("seed_banco_usr", random.randint(1, 99999))
+
             # 2. Modalidad de estudio
             modo_practica = st.radio(
                 "Modalidad de Estudio:",
@@ -1278,35 +1283,111 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
                     semana_sel = st.selectbox("Elegí la Semana:", list(cronograma_desglosado.keys()))
-                
-                temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_sel]]
                 with col_s2:
-                    tema_sel = st.selectbox("Elegí el Tema del Día:", temas_lista)
-                
-                tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
-                
-                keywords = [w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{5,}\b', tema_limpio)]
-                stop_words = {"enfoque", "manejo", "conducta", "criterios", "diagnostico", "tratamiento", "general"}
-                keywords = [k for k in keywords if k not in stop_words]
+                    alcance_semana = st.radio(
+                        "Alcance dentro de la semana:",
+                        ["🗓️ Toda la semana completa", "📌 Solo un tema del día"],
+                        horizontal=True,
+                        key="alcance_sem_radio"
+                    )
 
-                if keywords:
-                    patron = "|".join(keywords)
-                    cond_tema = df_activa["tema"].astype(str).str.lower().str.contains(patron, na=False)
-                    cond_preg = df_activa["pregunta"].astype(str).str.lower().str.contains(patron, na=False)
-                    filtered_df = df_activa[cond_tema | cond_preg].reset_index(drop=True)
+                def _norm_banco(txt: str) -> str:
+                    reemplazos = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
+                    return str(txt).translate(reemplazos).lower()
+
+                stop_words_b = {
+                    "enfoque", "manejo", "conducta", "criterios", "diagnostico", "diagnóstico",
+                    "tratamiento", "general", "clinica", "clínica", "patologia", "patología",
+                    "control", "evaluacion", "evaluación", "protocolo", "guia", "guía",
+                    "abordaje", "seguimiento", "prevencion", "prevención", "clasificacion",
+                    "clasificación", "examen", "residencia", "pura", "mitad", "primera",
+                    "segunda", "cierre", "urgencias", "medicas", "omitidas", "inicial",
+                    "complicaciones", "infecciones", "trastornos"
+                }
+
+                # Filtrar primero por área de la semana elegida para no mezclar materias
+                df_base_sem = df_activa.copy()
+                sem_norm_b = _norm_banco(semana_sel)
+                if "area" in df_base_sem.columns:
+                    area_norm_b = df_base_sem["area"].apply(_norm_banco)
+                    if any(k in sem_norm_b for k in ["gineco", "obstetri", "tocogineco"]):
+                        df_a_b = df_base_sem[area_norm_b.str.contains("gineco|obstetri|tocogineco", na=False)]
+                    elif "pediatr" in sem_norm_b or "neonato" in sem_norm_b:
+                        df_a_b = df_base_sem[area_norm_b.str.contains("pediatr|neonato", na=False)]
+                    elif "cirug" in sem_norm_b or "atls" in sem_norm_b:
+                        df_a_b = df_base_sem[area_norm_b.str.contains("cirug|trauma", na=False)]
+                    elif "clinica" in sem_norm_b:
+                        df_a_b = df_base_sem[area_norm_b.str.contains("clinica", na=False)]
+                    elif any(k in sem_norm_b for k in ["salud", "mental", "leyes", "preventiva", "publica"]):
+                        df_a_b = df_base_sem[area_norm_b.str.contains("salud|preventiva|publica|mental|legal", na=False)]
+                    else:
+                        df_a_b = df_base_sem
+
+                    if not df_a_b.empty:
+                        df_base_sem = df_a_b
+
+                if alcance_semana == "🗓️ Toda la semana completa":
+                    textos_semana = " ".join(
+                        item["Tema Específico"] for item in cronograma_desglosado[semana_sel]
+                    )
+                    kws_sem = [
+                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', textos_semana)
+                        if _norm_banco(w) not in stop_words_b
+                    ]
+                    kws_sem = list(dict.fromkeys(kws_sem))
+
+                    if kws_sem:
+                        tema_c = df_base_sem["tema"].apply(_norm_banco)
+                        preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
+                        scores_s = pd.Series(0, index=df_base_sem.index)
+                        for kw in kws_sem[:25]:
+                            scores_s += tema_c.str.contains(re.escape(kw), na=False).astype(int) * 2
+                            scores_s += preg_c.str.contains(re.escape(kw), na=False).astype(int) * 1
+                        filtered_df = df_base_sem[scores_s > 0].copy()
+                    else:
+                        filtered_df = df_base_sem.copy()
+
+                    mezclar_sem = st.checkbox("🎲 Mezclar preguntas de toda la semana", value=True, key="mezclar_sem_chk")
+                    if mezclar_sem and not filtered_df.empty:
+                        filtered_df = filtered_df.sample(frac=1, random_state=seed_banco).reset_index(drop=True)
+                    else:
+                        filtered_df = filtered_df.reset_index(drop=True)
+
+                    st.caption(f"🗓️ Bloque semanal completo ({semana_sel}): **{len(filtered_df)}** preguntas disponibles.")
+
                 else:
-                    filtered_df = df_activa.head(0)
+                    temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_sel]]
+                    tema_sel = st.selectbox("Elegí el Tema del Día:", temas_lista)
+                    tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
 
-                st.caption(f"🎯 Preguntas filtradas para este tema: **{len(filtered_df)}**")
+                    kws_dia = [
+                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
+                        if _norm_banco(w) not in stop_words_b
+                    ]
+                    kws_dia = list(dict.fromkeys(kws_dia))
+
+                    if kws_dia:
+                        tema_c = df_base_sem["tema"].apply(_norm_banco)
+                        preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
+                        scores_d = pd.Series(0, index=df_base_sem.index)
+                        for kw in kws_dia[:6]:
+                            scores_d += tema_c.str.contains(re.escape(kw), na=False).astype(int) * 3
+                            scores_d += preg_c.str.contains(re.escape(kw), na=False).astype(int) * 1
+                        filtered_df = df_base_sem.assign(_sc=scores_d)
+                        filtered_df = filtered_df[filtered_df["_sc"] > 0].sort_values("_sc", ascending=False).drop(columns=["_sc"]).reset_index(drop=True)
+                    else:
+                        filtered_df = df_base_sem.head(0)
+
+                    st.caption(f"🎯 Preguntas filtradas para este tema: **{len(filtered_df)}**")
 
             elif modo_practica == "📚 Por Área Específica":
                 areas_disponibles = sorted(list(df_activa["area"].dropna().unique()))
                 area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
-                filtered_df = df_activa[df_activa["area"] == area_sel].reset_index(drop=True)
+                filtered_df = df_activa[df_activa["area"] == area_sel].sample(frac=1, random_state=seed_banco).reset_index(drop=True)
                 st.caption(f"📚 Simulacro completo del área: **{len(filtered_df)}** preguntas")
 
             else:
-                filtered_df = df_activa.sample(frac=1, random_state=42).reset_index(drop=True)
+                filtered_df = df_activa.sample(frac=1, random_state=seed_banco).reset_index(drop=True)
 
             # 3. Visualización ciega y registro en error_log
             if filtered_df.empty:
@@ -1335,8 +1416,6 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
                     letra_elegida = resp_usr[0]
                     es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
-
-                    actualizar_srs_choice(str(q['id']), es_correcta)
 
                     error_df = get_sheet_data("error_log")
                     log_id = random.randint(100000, 999999)
