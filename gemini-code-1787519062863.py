@@ -723,35 +723,51 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
             logs_usr["fecha_dt"] = pd.to_datetime(logs_usr["fecha"], errors="coerce")
             logs_usr = logs_usr[logs_usr["fecha_dt"].notna()].sort_values("fecha_dt", ascending=True)
 
-            # Calcular próxima fecha de repaso por pregunta solo para ESTE usuario
+            # Calcular próxima fecha de repaso por pregunta solo para ESTE usuario (evitando bola de nieve)
             vencidas_ids = []
             for cid, grupo in logs_usr.groupby("choice_id_str"):
                 ultima_fecha = grupo["fecha_dt"].iloc[-1].date()
                 resultados = pd.to_numeric(grupo["es_correcta"], errors="coerce").fillna(0).astype(int).tolist()
+                dudas = pd.to_numeric(grupo["flag_duda"], errors="coerce").fillna(0).astype(int).tolist() if "flag_duda" in grupo.columns else [0] * len(resultados)
 
-                if resultados[-1] == 0 or int(grupo["flag_duda"].fillna(0).iloc[-1]) == 1:
+                hubo_fallo_o_duda = (0 in resultados) or (1 in dudas)
+
+                # Si falló o marcó duda en el último intento -> mañana (1 día) con máxima prioridad
+                if resultados[-1] == 0 or dudas[-1] == 1:
                     intervalo = 1
+                    prioridad = 0
+                elif not hubo_fallo_o_duda:
+                    # Nunca falló ni dudó: intervalo largo para no saturar sesiones futuras
+                    n_ok = len(resultados)
+                    if n_ok == 1:
+                        intervalo = 7
+                    elif n_ok == 2:
+                        intervalo = 21
+                    else:
+                        intervalo = 60
+                    prioridad = 2
                 else:
-                    # Contar aciertos consecutivos al final
+                    # Tuvo un fallo/duda antes, pero viene recuperando bien
                     racha_ok = 0
-                    for r in reversed(resultados):
-                        if r == 1:
+                    for r, d in zip(reversed(resultados), reversed(dudas)):
+                        if r == 1 and d == 0:
                             racha_ok += 1
                         else:
                             break
                     if racha_ok == 1:
-                        intervalo = 1
+                        intervalo = 2
                     elif racha_ok == 2:
                         intervalo = 6
                     else:
                         intervalo = int(round(6 * (2.5 ** (racha_ok - 2))))
+                    prioridad = 1
 
                 proxima_fecha = ultima_fecha + timedelta(days=intervalo)
                 if proxima_fecha <= hoy_date:
-                    vencidas_ids.append((cid, proxima_fecha))
+                    vencidas_ids.append((cid, prioridad, proxima_fecha))
 
-            # Ordenar de más atrasada a más reciente
-            vencidas_ids.sort(key=lambda x: x[1])
+            # Ordenar: primero fallos/dudas recientes, luego recuperaciones, y dentro de eso las más atrasadas
+            vencidas_ids.sort(key=lambda x: (x[1], x[2]))
             ids_ordenados = [x[0] for x in vencidas_ids]
 
             df_choices_srs["id_str"] = df_choices_srs["id"].astype(str).str.strip()
@@ -765,7 +781,7 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                 patron_br = "revalida|enamed|inep|brasil|sus"
                 df_vencidas = df_vencidas[df_vencidas["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
-            # Mantener orden de vencimiento
+            # Mantener orden de prioridad y vencimiento
             if not df_vencidas.empty:
                 orden_map = {cid: pos for pos, cid in enumerate(ids_ordenados)}
                 df_vencidas["_ord"] = df_vencidas["id_str"].map(orden_map)
@@ -774,7 +790,18 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
             if df_vencidas.empty:
                 st.success("✅ ¡Estás al día! No tenés preguntas vencidas de bloques anteriores para repasar hoy.")
             else:
-                st.warning(f"📌 Tenés **{len(df_vencidas)} preguntas de tus sesiones anteriores** programadas para recuperar hoy:")
+                total_vencidas_hoy = len(df_vencidas)
+                tope_srs = st.slider(
+                    "Límite de preguntas de repaso para esta sesión (prioriza tus fallos y dudas):",
+                    min_value=5,
+                    max_value=50,
+                    value=min(15, total_vencidas_hoy) if total_vencidas_hoy >= 5 else 5,
+                    step=5,
+                    key="tope_srs_slider"
+                )
+                df_vencidas = df_vencidas.head(tope_srs).reset_index(drop=True)
+
+                st.warning(f"📌 Tenés **{total_vencidas_hoy} preguntas vencidas** en total (mostrando las **{len(df_vencidas)} más prioritarias**).")
 
                 idx_srs = st.selectbox(
                     "Elegí la pregunta vencida para recuperar de memoria:",
@@ -849,7 +876,7 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                                     err_act.at[ix, "motivo_error"] = mot_srs
                                     err_act.at[ix, "regla_oro"] = nota_srs
                                     save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.") 
+                                    st.success("✅ Notita guardada en Google Sheets.")  
 
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
