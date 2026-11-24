@@ -911,10 +911,16 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
         if df_choices_srs.empty or "next_review" not in df_choices_srs.columns:
             st.info("No se detectó la columna 'next_review' en choices.")
         else:
-            df_vencidas = df_choices_srs[
-                df_choices_srs["next_review"].astype(str).str.strip().ne("") &
-                (df_choices_srs["next_review"].astype(str) <= hoy_str)
-            ].copy()
+            df_vencidas = df_choices_srs.copy()
+
+            # Solo preguntas con fecha válida YYYY-MM-DD ya vencida (<= hoy)
+            fechas_parsed = pd.to_datetime(df_vencidas["next_review"], errors="coerce").dt.strftime("%Y-%m-%d")
+            df_vencidas = df_vencidas[fechas_parsed.notna() & (fechas_parsed <= hoy_str)].copy()
+
+            # Solo preguntas que ya pasaron al menos por 1 repaso
+            if "repetitions" in df_vencidas.columns:
+                reps_num = pd.to_numeric(df_vencidas["repetitions"], errors="coerce").fillna(0)
+                df_vencidas = df_vencidas[reps_num > 0].copy()
 
             palabras_hoy = [w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{5,}\b', tema_limpio)]
             if palabras_hoy and not df_vencidas.empty:
@@ -944,9 +950,9 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                     f"C) {q_srs['opcion_c']}",
                     f"D) {q_srs['opcion_d']}"
                 ]
-                resp_srs = st.radio("Tu respuesta de memoria:", opts_srs, key=f"srs_rad_{q_srs['id']}")
+                resp_srs = st.radio("Tu respuesta de memoria:", opts_srs, key=f"srs_rad_{idx_srs}_{q_srs['id']}")
 
-                if st.button("Confirmar y Reprogramar Repaso", key=f"srs_btn_{q_srs['id']}"):
+                if st.button("Confirmar y Reprogramar Repaso", key=f"srs_btn_{idx_srs}_{q_srs['id']}"):
                     elegida_srs = resp_srs[0]
                     correcta_srs = str(q_srs["correcta"]).strip().upper()
                     acerto_srs = 1 if elegida_srs == correcta_srs else 0
@@ -960,7 +966,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
 
                     st.markdown(f"📌 **Tema:** *{q_srs['tema']}*")
                     st.info(f"**Justificación:** {q_srs['justificacion']}") 
-
+                    
     t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
 
     with t1:
