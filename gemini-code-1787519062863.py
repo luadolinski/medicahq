@@ -1021,7 +1021,7 @@ elif menu == "✨ Generador de Choices con IA":
                     st.error(f"Error procesando la respuesta de la IA: {e}")
 
 # -------------------------------------------------------------
-# 5. BANCO DE CHOICES & SIMULACROS (FILTRO PAÍS + MODO CIEGO)
+# 5. BANCO DE CHOICES & SIMULACROS (FILTRO PAÍS + TEMA + MODO CIEGO)
 # -------------------------------------------------------------
 elif menu == "📝 Banco de Choices & Simulacros":
     st.header("📝 Banco de Choices & Simulacros")
@@ -1034,30 +1034,61 @@ elif menu == "📝 Banco de Choices & Simulacros":
         df_activa = choices_df.copy()
         
         if filtro_pais == "🇦🇷 Solo Argentina":
-            # Filtra exámenes argentinos (Examen Único, ERES, CABA, etc.)
             patron_ar = "unico|único|caba|eres|argentina"
             df_activa = df_activa[df_activa["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
         elif filtro_pais == "🇧🇷 Solo Brasil":
-            # Filtra exámenes brasileños (Revalida, ENAMED, INEP, etc.)
             patron_br = "revalida|enamed|inep|brasil|sus"
             df_activa = df_activa[df_activa["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
         if df_activa.empty:
             st.warning(f"No hay preguntas cargadas que coincidan con el filtro '{filtro_pais}'. Podés cambiar a 'Modo Dual' en la barra lateral.")
         else:
-            modo_practica = st.radio("Modalidad de Estudio:", ["📚 Por Área Específica", "🎲 Simulacro Aleatorio"], horizontal=True)
+            # 2. Modalidad de estudio (Agregado filtro por Tema del Cronograma)
+            modo_practica = st.radio(
+                "Modalidad de Estudio:",
+                ["📅 Por Tema del Cronograma", "📚 Por Área Específica", "🎲 Simulacro Aleatorio"],
+                horizontal=True
+            )
 
-            if modo_practica == "📚 Por Área Específica":
+            if modo_practica == "📅 Por Tema del Cronograma":
+                col_s1, col_s2 = st.columns(2)
+                with col_s1:
+                    semana_sel = st.selectbox("Elegí la Semana:", list(cronograma_desglosado.keys()))
+                
+                temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_sel]]
+                with col_s2:
+                    tema_sel = st.selectbox("Elegí el Tema del Día:", temas_lista)
+                
+                tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
+                
+                # Extracción de palabras clave significativas (>4 letras)
+                keywords = [w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{5,}\b', tema_limpio)]
+                stop_words = {"enfoque", "manejo", "conducta", "criterios", "diagnostico", "tratamiento", "general"}
+                keywords = [k for k in keywords if k not in stop_words]
+
+                if keywords:
+                    patron = "|".join(keywords)
+                    cond_tema = df_activa["tema"].astype(str).str.lower().str.contains(patron, na=False)
+                    cond_preg = df_activa["pregunta"].astype(str).str.lower().str.contains(patron, na=False)
+                    filtered_df = df_activa[cond_tema | cond_preg].reset_index(drop=True)
+                else:
+                    filtered_df = df_activa.head(0)
+
+                st.caption(f"🎯 Preguntas filtradas para este tema: **{len(filtered_df)}**")
+
+            elif modo_practica == "📚 Por Área Específica":
                 areas_disponibles = sorted(list(df_activa["area"].dropna().unique()))
                 area_sel = st.selectbox("Seleccioná el Área Médica:", areas_disponibles)
                 filtered_df = df_activa[df_activa["area"] == area_sel].reset_index(drop=True)
+                st.caption(f"📚 Simulacro completo del área: **{len(filtered_df)}** preguntas")
+
             else:
                 filtered_df = df_activa.sample(frac=1, random_state=42).reset_index(drop=True)
 
+            # 3. Visualización ciega y registro en error_log
             if filtered_df.empty:
-                st.warning("No hay preguntas disponibles para esta selección.")
+                st.warning("No hay preguntas disponibles para esta selección. Probá cambiando a 'Por Área Específica'.")
             else:
-                # Selector ciego: solo número y origen
                 q_idx = st.selectbox(
                     "Seleccionar Pregunta a Resolver:",
                     range(len(filtered_df)),
@@ -1065,7 +1096,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 )
                 q = filtered_df.iloc[q_idx]
 
-                # Encabezado sin tema
+                # Encabezado ciego (sin mostrar el tema todavía)
                 st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}**")
                 st.write(f"### {q['pregunta']}")
 
