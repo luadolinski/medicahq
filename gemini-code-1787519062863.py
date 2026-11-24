@@ -967,7 +967,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                     st.markdown(f"📌 **Tema:** *{q_srs['tema']}*")
                     st.info(f"**Justificación:** {q_srs['justificacion']}") 
                     
-    t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema (5 Preguntas)"])
+    t1, t2, t3, t4 = st.tabs(["🧠 Diagrama de Flujo / Algoritmo", "⚡ High-Yield Pearls con IA", "⚖️ Comparativa AR vs BR", "📝 Quiz Rápido del Tema "])
 
     with t1:
         st.subheader("Algoritmo Clínico Interactivo")
