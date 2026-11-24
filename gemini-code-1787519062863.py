@@ -729,7 +729,7 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                 ultima_fecha = grupo["fecha_dt"].iloc[-1].date()
                 resultados = pd.to_numeric(grupo["es_correcta"], errors="coerce").fillna(0).astype(int).tolist()
 
-                if resultados[-1] == 0:
+                if resultados[-1] == 0 or int(grupo["flag_duda"].fillna(0).iloc[-1]) == 1:
                     intervalo = 1
                 else:
                     # Contar aciertos consecutivos al final
