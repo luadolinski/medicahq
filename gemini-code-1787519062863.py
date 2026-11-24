@@ -1038,12 +1038,60 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                     [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
                     key=f"quiz_din_{q_row['id']}"
                 )
+                duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{q_row['id']}")
+
                 if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{q_row['id']}"):
-                    if ans[0] == q_row['correcta']:
+                    ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
+                    actualizar_srs_choice(str(q_row['id']), ok_t4)
+
+                    err_df = get_sheet_data("error_log")
+                    log_t4_id = random.randint(100000, 999999)
+                    nueva_f = pd.DataFrame([{
+                        "id": log_t4_id,
+                        "username": st.session_state.current_user,
+                        "choice_id": str(q_row['id']),
+                        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "respuesta_dada": ans[0],
+                        "es_correcta": ok_t4,
+                        "flag_duda": 1 if duda_t4 else 0,
+                        "motivo_error": "",
+                        "regla_oro": ""
+                    }])
+                    save_sheet_data("error_log", pd.concat([err_df, nueva_f], ignore_index=True))
+
+                    st.session_state[f"t4_log_{q_row['id']}"] = log_t4_id
+                    st.session_state[f"t4_done_{q_row['id']}"] = True
+
+                if st.session_state.get(f"t4_done_{q_row['id']}", False):
+                    ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
+                    if ok_t4:
                         st.success(f"¡Correcto! Opción {q_row['correcta']}")
                     else:
                         st.error(f"Incorrecto. La respuesta oficial era la opción {q_row['correcta']}.")
                     st.info(q_row['justificacion'])
+
+                    if not ok_t4 or duda_t4:
+                        with st.container(border=True):
+                            st.markdown("✍️ **Guardar en mi Cuaderno de Errores:**")
+                            mot_t4 = st.selectbox(
+                                "¿Por qué fallaste?",
+                                ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"],
+                                key=f"mot_t4_{q_row['id']}"
+                            )
+                            nota_t4 = st.text_input(
+                                "💡 Tu notita / regla para no volver a caer:",
+                                placeholder="Ej.: En embarazo se evita doxiciclina; en SUS notificar dentro de 24h...",
+                                key=f"nota_t4_{q_row['id']}"
+                            )
+                            if st.button("💾 Guardar Notita", key=f"save_t4_{q_row['id']}"):
+                                err_act = get_sheet_data("error_log")
+                                lid = st.session_state.get(f"t4_log_{q_row['id']}")
+                                if not err_act.empty and lid in err_act["id"].values:
+                                    ix = err_act[err_act["id"] == lid].index[-1]
+                                    err_act.at[ix, "motivo_error"] = mot_t4
+                                    err_act.at[ix, "regla_oro"] = nota_t4
+                                    save_sheet_data("error_log", err_act)
+                                    st.success("✅ Notita guardada en Google Sheets.")
                 st.markdown("---")
 
 # -------------------------------------------------------------
@@ -1231,9 +1279,12 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     letra_elegida = resp_usr[0]
                     es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
 
+                    actualizar_srs_choice(str(q['id']), es_correcta)
+
                     error_df = get_sheet_data("error_log")
+                    log_id = random.randint(100000, 999999)
                     new_log = pd.DataFrame([{
-                        "id": random.randint(100000, 999999),
+                        "id": log_id,
                         "username": st.session_state.current_user,
                         "choice_id": str(q['id']),
                         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -1245,15 +1296,44 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     }])
                     save_sheet_data("error_log", pd.concat([error_df, new_log], ignore_index=True))
 
+                    st.session_state[f"ultimo_log_{q['id']}"] = log_id
+                    st.session_state[f"respondido_{q['id']}"] = True
+
+                if st.session_state.get(f"respondido_{q['id']}", False):
+                    letra_elegida = resp_usr[0]
+                    es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
+
                     if es_correcta:
                         st.success(f"🎉 ¡CORRECTO! Opción {q['correcta']}")
                     else:
                         st.error(f"❌ INCORRECTO. La respuesta oficial era la opción {q['correcta']}.")
 
-                    # Revelación posterior del tema evaluado
                     st.markdown(f"📌 **Tema evaluado:** *{q['tema']}*")
                     st.info(f"**Fundamento Clínico:** {q['justificacion']}")
 
+                    if not es_correcta or flag_duda:
+                        with st.container(border=True):
+                            st.markdown("✍️ **Guardar en mi Cuaderno de Errores:**")
+                            motivo_sel = st.selectbox(
+                                "¿Por qué fallaste?",
+                                ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"],
+                                key=f"mot_{q['id']}"
+                            )
+                            nota_personal = st.text_input(
+                                "💡 Tu notita / regla para evitarlo la próxima:",
+                                placeholder="Ej.: Criterio de internación cambia a partir de...",
+                                key=f"nota_{q['id']}"
+                            )
+                            if st.button("💾 Guardar Notita en Cuaderno", key=f"save_nota_{q['id']}"):
+                                err_actual = get_sheet_data("error_log")
+                                log_target = st.session_state.get(f"ultimo_log_{q['id']}")
+                                if not err_actual.empty and log_target in err_actual["id"].values:
+                                    idx_log = err_actual[err_actual["id"] == log_target].index[-1]
+                                    err_actual.at[idx_log, "motivo_error"] = motivo_sel
+                                    err_actual.at[idx_log, "regla_oro"] = nota_personal
+                                    save_sheet_data("error_log", err_actual)
+                                    st.success("✅ Notita guardada en Google Sheets.") 
+                                    
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
 # -------------------------------------------------------------
