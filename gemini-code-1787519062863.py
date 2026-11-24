@@ -1018,21 +1018,33 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                             st.error(f"Error generando comparativa: {err}")
 
     with t4:
-        st.subheader("🎯 Quiz Rápido del Tema (Hasta 5 Preguntas)")
+        st.subheader("🎯 Quiz Rápido del Tema")
+
+        cant_preguntas = st.slider(
+            "¿Cuántas preguntas querés resolver hoy de este tema?",
+            min_value=3,
+            max_value=30,
+            value=10,
+            step=1,
+            key=f"cant_q_{tema_limpio[:20]}"
+        )
+
+        def _norm(txt: str) -> str:
+            reemplazos = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
+            return str(txt).translate(reemplazos).lower()
 
         stopwords_med = {
-            "manejo", "diagnostico", "diagnóstico", "tratamiento", "enfoque",
-            "clinica", "clínica", "general", "criterios", "conducta",
-            "patologia", "patología", "control", "evaluacion", "evaluación",
-            "protocolo", "guia", "guía", "abordaje", "seguimiento", "prevencion",
-            "prevención", "clasificacion", "clasificación", "examen", "residencia"
+            "manejo", "diagnostico", "tratamiento", "enfoque", "clinica", "general",
+            "criterios", "conducta", "patologia", "control", "evaluacion", "protocolo",
+            "guia", "abordaje", "seguimiento", "prevencion", "clasificacion", "examen",
+            "residencia", "pura", "mitad", "primera", "segunda", "cierre", "urgencias",
+            "medicas", "omitidas", "inicial", "complicaciones", "infecciones", "trastornos"
         }
 
         tokens_tema = [
-            w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
-            if w.lower() not in stopwords_med
+            _norm(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
+            if _norm(w) not in stopwords_med
         ]
-        # Quitar duplicados manteniendo orden
         kws_especificas = list(dict.fromkeys(tokens_tema))
 
         choices_df = get_sheet_data("choices")
@@ -1040,29 +1052,49 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
 
         if not choices_df.empty and "tema" in choices_df.columns and kws_especificas:
             df_busqueda = choices_df.copy()
-            tema_col = df_busqueda["tema"].astype(str).str.lower()
-            preg_col = df_busqueda["pregunta"].astype(str).str.lower() if "pregunta" in df_busqueda.columns else pd.Series("", index=df_busqueda.index)
 
-            # Puntaje de coincidencia: vale más si coincide en 'tema' que en 'pregunta'
+            sem_norm = _norm(semana_estudio)
+            if "area" in df_busqueda.columns:
+                area_norm = df_busqueda["area"].apply(_norm)
+                if any(k in sem_norm for k in ["gineco", "obstetri", "tocogineco"]):
+                    df_area_f = df_busqueda[area_norm.str.contains("gineco|obstetri|tocogineco", na=False)]
+                elif "pediatr" in sem_norm or "neonato" in sem_norm:
+                    df_area_f = df_busqueda[area_norm.str.contains("pediatr|neonato", na=False)]
+                elif "cirug" in sem_norm or "atls" in sem_norm:
+                    df_area_f = df_busqueda[area_norm.str.contains("cirug|trauma", na=False)]
+                elif "clinica" in sem_norm:
+                    df_area_f = df_busqueda[area_norm.str.contains("clinica", na=False)]
+                elif any(k in sem_norm for k in ["salud", "mental", "leyes", "preventiva", "publica"]):
+                    df_area_f = df_busqueda[area_norm.str.contains("salud|preventiva|publica|mental|legal", na=False)]
+                else:
+                    df_area_f = df_busqueda
+
+                if not df_area_f.empty:
+                    df_busqueda = df_area_f
+
+            tema_col = df_busqueda["tema"].apply(_norm)
+            preg_col = df_busqueda["pregunta"].apply(_norm) if "pregunta" in df_busqueda.columns else pd.Series("", index=df_busqueda.index)
+
             scores = pd.Series(0, index=df_busqueda.index)
-            for kw in kws_especificas[:5]:
-                scores += tema_col.str.contains(re.escape(kw), na=False).astype(int) * 2
+            for kw in kws_especificas[:6]:
+                scores += tema_col.str.contains(re.escape(kw), na=False).astype(int) * 3
                 scores += preg_col.str.contains(re.escape(kw), na=False).astype(int) * 1
 
             df_busqueda["_score"] = scores
             df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False)
-            quiz_q = df_filtradas.drop(columns=["_score"]).head(5)
+            quiz_q = df_filtradas.drop(columns=["_score"]).head(cant_preguntas)
 
         if quiz_q.empty:
             st.info(
-                f"Todavía no tenés preguntas cargadas en 'choices' que coincidan con **{tema_limpio}** "
-                f"(palabras buscadas: `{', '.join(kws_especificas[:4]) if kws_especificas else 'ninguna'}`). "
-                "Podés generarlas o cargarlas en tu hoja 'choices' para este tema."
+                f"No encontré choices en tu base que coincidan específicamente con **{tema_limpio}** "
+                f"(términos buscados: `{', '.join(kws_especificas[:5]) if kws_especificas else 'ninguno'}`). "
+                "Podés generar preguntas nuevas para este tema o practicar desde el Banco de Choices."
             )
         else:
+            st.caption(f"Mostrando **{len(quiz_q)}** preguntas disponibles para este tema (máximo elegido: {cant_preguntas}).")
             for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
-                st.caption(f"Tema registrado en banco: *{q_row.get('tema', '')}*")
+                st.caption(f"📂 {q_row.get('area', '')} | 🏷️ Tema en base: *{q_row.get('tema', '')}*")
                 ans = st.radio(
                     f"Opciones para P{idx+1}:",
                     [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
@@ -1122,7 +1154,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                                     err_act.at[ix, "regla_oro"] = nota_t4
                                     save_sheet_data("error_log", err_act)
                                     st.success("✅ Notita guardada en Google Sheets.")
-                st.markdown("---")
+                st.markdown("---") 
                 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
