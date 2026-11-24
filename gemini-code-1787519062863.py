@@ -1018,29 +1018,59 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                             st.error(f"Error generando comparativa: {err}")
 
     with t4:
-        st.subheader("🎯 Quiz Rápido del Tema (5 Preguntas)")
-        palabras = [w for w in tema_limpio.split() if len(w) > 4][:2]
-        query_kw = palabras[0].lower() if palabras else ""
-        
-        choices_df = get_sheet_data("choices")
-        if not choices_df.empty and "tema" in choices_df.columns:
-            quiz_q = choices_df[choices_df["tema"].astype(str).str.lower().str.contains(query_kw, na=False)].head(5)
-        else:
-            quiz_q = pd.DataFrame()
+        st.subheader("🎯 Quiz Rápido del Tema (Hasta 5 Preguntas)")
 
-        if len(quiz_q) == 0:
-            st.info(f"No hay choices guardados sobre '{tema_limpio[:40]}...'. Podés generar preguntas en la solapa '✨ Generador de Choices con IA'.")
+        stopwords_med = {
+            "manejo", "diagnostico", "diagnóstico", "tratamiento", "enfoque",
+            "clinica", "clínica", "general", "criterios", "conducta",
+            "patologia", "patología", "control", "evaluacion", "evaluación",
+            "protocolo", "guia", "guía", "abordaje", "seguimiento", "prevencion",
+            "prevención", "clasificacion", "clasificación", "examen", "residencia"
+        }
+
+        tokens_tema = [
+            w.lower() for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
+            if w.lower() not in stopwords_med
+        ]
+        # Quitar duplicados manteniendo orden
+        kws_especificas = list(dict.fromkeys(tokens_tema))
+
+        choices_df = get_sheet_data("choices")
+        quiz_q = pd.DataFrame()
+
+        if not choices_df.empty and "tema" in choices_df.columns and kws_especificas:
+            df_busqueda = choices_df.copy()
+            tema_col = df_busqueda["tema"].astype(str).str.lower()
+            preg_col = df_busqueda["pregunta"].astype(str).str.lower() if "pregunta" in df_busqueda.columns else pd.Series("", index=df_busqueda.index)
+
+            # Puntaje de coincidencia: vale más si coincide en 'tema' que en 'pregunta'
+            scores = pd.Series(0, index=df_busqueda.index)
+            for kw in kws_especificas[:5]:
+                scores += tema_col.str.contains(re.escape(kw), na=False).astype(int) * 2
+                scores += preg_col.str.contains(re.escape(kw), na=False).astype(int) * 1
+
+            df_busqueda["_score"] = scores
+            df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False)
+            quiz_q = df_filtradas.drop(columns=["_score"]).head(5)
+
+        if quiz_q.empty:
+            st.info(
+                f"Todavía no tenés preguntas cargadas en 'choices' que coincidan con **{tema_limpio}** "
+                f"(palabras buscadas: `{', '.join(kws_especificas[:4]) if kws_especificas else 'ninguna'}`). "
+                "Podés generarlas o cargarlas en tu hoja 'choices' para este tema."
+            )
         else:
             for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
+                st.caption(f"Tema registrado en banco: *{q_row.get('tema', '')}*")
                 ans = st.radio(
                     f"Opciones para P{idx+1}:",
                     [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
-                    key=f"quiz_din_{q_row['id']}"
+                    key=f"quiz_din_{idx}_{q_row['id']}"
                 )
-                duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{q_row['id']}")
+                duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{idx}_{q_row['id']}")
 
-                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{q_row['id']}"):
+                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{idx}_{q_row['id']}"):
                     ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
                     actualizar_srs_choice(str(q_row['id']), ok_t4)
 
@@ -1076,14 +1106,14 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                             mot_t4 = st.selectbox(
                                 "¿Por qué fallaste?",
                                 ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"],
-                                key=f"mot_t4_{q_row['id']}"
+                                key=f"mot_t4_{idx}_{q_row['id']}"
                             )
                             nota_t4 = st.text_input(
                                 "💡 Tu notita / regla para no volver a caer:",
                                 placeholder="Ej.: En embarazo se evita doxiciclina; en SUS notificar dentro de 24h...",
-                                key=f"nota_t4_{q_row['id']}"
+                                key=f"nota_t4_{idx}_{q_row['id']}"
                             )
-                            if st.button("💾 Guardar Notita", key=f"save_t4_{q_row['id']}"):
+                            if st.button("💾 Guardar Notita", key=f"save_t4_{idx}_{q_row['id']}"):
                                 err_act = get_sheet_data("error_log")
                                 lid = st.session_state.get(f"t4_log_{q_row['id']}")
                                 if not err_act.empty and lid in err_act["id"].values:
@@ -1093,7 +1123,7 @@ elif menu == "📚 Temario, Algoritmos & Quiz":
                                     save_sheet_data("error_log", err_act)
                                     st.success("✅ Notita guardada en Google Sheets.")
                 st.markdown("---")
-
+                
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
 # -------------------------------------------------------------
