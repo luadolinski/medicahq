@@ -1389,14 +1389,41 @@ elif menu == "📝 Banco de Choices & Simulacros":
             else:
                 filtered_df = df_activa.sample(frac=1, random_state=seed_banco).reset_index(drop=True)
 
+            # 2B. Control de cobertura: filtrar preguntas ya hechas por este usuario
+            err_cov = get_sheet_data("error_log")
+            hechas_usr = set()
+            acertadas_usr = set()
+            if not err_cov.empty and "username" in err_cov.columns:
+                logs_cov = err_cov[err_cov["username"].astype(str) == str(st.session_state.current_user)]
+                hechas_usr = set(logs_cov["choice_id"].astype(str).str.strip())
+                acertadas_usr = set(logs_cov[logs_cov["es_correcta"] == 1]["choice_id"].astype(str).str.strip())
+
+            total_sel = len(filtered_df)
+            hechas_en_sel = sum(1 for cid in filtered_df["id"].astype(str).str.strip() if cid in hechas_usr) if total_sel > 0 else 0
+            st.caption(f"📊 Cobertura en esta selección: **{hechas_en_sel} de {total_sel}** preguntas únicas ya resueltas.")
+
+            solo_nuevas = st.checkbox("🆕 Mostrar solo preguntas nuevas (no hechas todavía)", value=True, key="solo_nuevas_banco")
+            if solo_nuevas and not filtered_df.empty:
+                filtered_df = filtered_df[~filtered_df["id"].astype(str).str.strip().isin(hechas_usr)].reset_index(drop=True)
+
             # 3. Visualización ciega y registro en error_log
             if filtered_df.empty:
-                st.warning("No hay preguntas disponibles para esta selección. Probá cambiando a 'Por Área Específica'.")
+                st.warning("No hay preguntas disponibles para esta selección (o ya completaste todas las nuevas de este bloque).")
             else:
+                def _etiqueta_preg(x):
+                    cid = str(filtered_df.iloc[x]["id"]).strip()
+                    if cid in acertadas_usr:
+                        marca = "✅"
+                    elif cid in hechas_usr:
+                        marca = "❌"
+                    else:
+                        marca = "🆕"
+                    return f"{marca} Pregunta #{x+1} — {filtered_df.iloc[x]['examen_origen']}"
+
                 q_idx = st.selectbox(
                     "Seleccionar Pregunta a Resolver:",
                     range(len(filtered_df)),
-                    format_func=lambda x: f"Pregunta #{x+1} — {filtered_df.iloc[x]['examen_origen']}"
+                    format_func=_etiqueta_preg
                 )
                 q = filtered_df.iloc[q_idx]
 
@@ -1468,7 +1495,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                     err_actual.at[idx_log, "motivo_error"] = motivo_sel
                                     err_actual.at[idx_log, "regla_oro"] = nota_personal
                                     save_sheet_data("error_log", err_actual)
-                                    st.success("✅ Notita guardada en Google Sheets.")
+                                    st.success("✅ Notita guardada en Google Sheets.") 
 
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
@@ -1555,6 +1582,7 @@ elif menu == "📊 Estadísticas de Rendimiento":
         choices_df["id_str"] = choices_df["id"].astype(str).str.strip()
         metrics_df = user_logs.merge(choices_df, left_on="choice_id_str", right_on="id_str")
     else:
+        user_logs = pd.DataFrame(columns=["choice_id_str"])
         metrics_df = pd.DataFrame()
 
     if metrics_df.empty:
@@ -1565,13 +1593,51 @@ elif menu == "📊 Estadísticas de Rendimiento":
             st.subheader("Rendimiento por Especialidad")
             area_stats = metrics_df.groupby("area")["es_correcta"].agg(Total="count", Aciertos="sum").reset_index()
             area_stats["Porcentaje"] = (area_stats["Aciertos"] / area_stats["Total"]) * 100
-            fig = px.bar(area_stats, x="area", y="Porcentaje", text_auto=".1f", color="Porcentaje", color_continuous_scale="Teal", labels={"Porcentaje": "% Acierto", "area": "Especialidad"})
+            fig = px.bar(
+                area_stats,
+                x="area",
+                y="Porcentaje",
+                text_auto=".1f",
+                color="Porcentaje",
+                color_continuous_scale="Teal",
+                labels={"Porcentaje": "% Acierto", "area": "Especialidad"}
+            )
             st.plotly_chart(fig, use_container_width=True)
         with c2:
             st.subheader("Proporción Global de Aciertos")
-            fig_p = px.pie(values=[metrics_df['es_correcta'].sum(), len(metrics_df)-metrics_df['es_correcta'].sum()], names=["Aciertos", "Errores"], color_discrete_sequence=["#2ecc71", "#e74c3c"])
+            fig_p = px.pie(
+                values=[metrics_df['es_correcta'].sum(), len(metrics_df) - metrics_df['es_correcta'].sum()],
+                names=["Aciertos", "Errores"],
+                color_discrete_sequence=["#2ecc71", "#e74c3c"]
+            )
             st.plotly_chart(fig_p, use_container_width=True)
 
+    # Tabla de cobertura real del banco por especialidad
+    if not choices_df.empty:
+        st.markdown("---")
+        st.subheader("📚 Cobertura Total del Banco por Especialidad")
+
+        df_c_cov = choices_df.copy()
+        if "id_str" not in df_c_cov.columns:
+            df_c_cov["id_str"] = df_c_cov["id"].astype(str).str.strip()
+
+        if filtro_pais == "🇦🇷 Solo Argentina":
+            df_c_cov = df_c_cov[df_c_cov["examen_origen"].astype(str).str.lower().str.contains("unico|único|caba|eres|argentina", na=False)]
+        elif filtro_pais == "🇧🇷 Solo Brasil":
+            df_c_cov = df_c_cov[df_c_cov["examen_origen"].astype(str).str.lower().str.contains("revalida|enamed|inep|brasil|sus", na=False)]
+
+        ids_unicos_hechos = set(user_logs["choice_id_str"].unique()) if not user_logs.empty else set()
+        df_c_cov["hecha"] = df_c_cov["id_str"].isin(ids_unicos_hechos)
+
+        cobertura_area = df_c_cov.groupby("area").agg(
+            Disponibles=("id_str", "count"),
+            Completadas=("hecha", "sum")
+        ).reset_index()
+        cobertura_area["Pendientes"] = cobertura_area["Disponibles"] - cobertura_area["Completadas"]
+        cobertura_area["% Cubierto"] = ((cobertura_area["Completadas"] / cobertura_area["Disponibles"]) * 100).round(1)
+        cobertura_area = cobertura_area.rename(columns={"area": "Especialidad"})
+
+        st.dataframe(cobertura_area, use_container_width=True, hide_index=True) 
 # -------------------------------------------------------------
 # 8. CARGA DE EXÁMENES CSV
 # -------------------------------------------------------------
