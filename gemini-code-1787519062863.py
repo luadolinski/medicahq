@@ -961,32 +961,72 @@ elif menu == "📚 Algoritmos y Quiz Diario":
     with t4:
         st.subheader("🎯 Quiz Rápido del Tema")
 
-        cant_preguntas = st.slider(
-            "¿Cuántas preguntas querés resolver hoy de este tema?",
-            min_value=3,
-            max_value=30,
-            value=10,
-            step=1,
-            key=f"cant_q_{tema_limpio[:20]}"
-        )
+        col_q1, col_q2, col_q3 = st.columns([2, 1.5, 1.2])
+        with col_q1:
+            cant_preguntas = st.slider(
+                "¿Cuántas preguntas querés resolver en esta tanda?",
+                min_value=3,
+                max_value=30,
+                value=15,
+                step=1,
+                key=f"cant_q_{tema_limpio[:20]}"
+            )
+        with col_q2:
+            solo_nuevas_t4 = st.checkbox(
+                "🆕 Solo preguntas nuevas",
+                value=True,
+                key=f"nuevas_t4_{tema_limpio[:20]}"
+            )
+        with col_q3:
+            st.write("")
+            if st.button("🔄 Nueva tanda", key=f"refresh_t4_{tema_limpio[:20]}"):
+                st.session_state[f"seed_t4_{tema_limpio[:20]}"] = random.randint(1, 999999)
+                st.session_state.pop(f"batch_ids_t4_{tema_limpio[:20]}", None)
+                st.rerun()
 
         def _norm(txt: str) -> str:
             reemplazos = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
             return str(txt).translate(reemplazos).lower()
 
         stopwords_med = {
-            "manejo", "diagnostico", "tratamiento", "enfoque", "clinica", "general",
-            "criterios", "conducta", "patologia", "control", "evaluacion", "protocolo",
-            "guia", "abordaje", "seguimiento", "prevencion", "clasificacion", "examen",
-            "residencia", "pura", "mitad", "primera", "segunda", "cierre", "urgencias",
-            "medicas", "omitidas", "inicial", "complicaciones", "infecciones", "trastornos"
+            "manejo", "diagnostico", "tratamiento", "enfoque", "clinica", "clinico",
+            "general", "criterios", "criterio", "conducta", "patologia", "control",
+            "evaluacion", "protocolo", "protocolos", "guia", "guias", "abordaje",
+            "seguimiento", "prevencion", "clasificacion", "examen", "residencia",
+            "pura", "mitad", "primera", "segunda", "tercera", "cierre", "urgencias",
+            "urgencia", "medicas", "medica", "medico", "omitidas", "inicial",
+            "complicaciones", "infecciones", "infeccion", "trastornos", "trastorno",
+            "desde", "hasta", "luego", "entre", "sobre", "durante", "mediante",
+            "segun", "ante", "frente", "tras", "anual", "bienal", "mensual",
+            "semanal", "diario", "negativos", "negativo", "positivos", "positivo",
+            "anos", "meses", "semanas", "dias", "horas", "consenso", "fasgo",
+            "msal", "ministerio", "salud", "paciente", "pacientes", "mujer",
+            "mujeres", "nino", "ninos", "adulto", "adultos", "mayor", "menor",
+            "agudo", "aguda", "cronico", "cronica", "primario", "primaria",
+            "secundario", "secundaria", "indicacion", "indicaciones",
+            "contraindicacion", "contraindicaciones", "esquema", "esquemas",
+            "dosis", "via", "oral", "riesgo", "alta", "baja", "choices", "oficiales"
         }
 
-        tokens_tema = [
-            _norm(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
-            if _norm(w) not in stopwords_med
+        siglas_t4 = {
+            "pap", "epi", "sop", "itu", "ive", "ile", "diu", "siu", "vih", "hiv",
+            "tbc", "acv", "iam", "sca", "tep", "hta", "dm2", "cad", "ehh", "erc",
+            "pbe", "suh", "nac", "oma", "tea", "rcp", "vpp", "ttn", "sam", "tec",
+            "hsa", "les", "pti", "cid", "sus", "esf", "ubs", "acs", "cat", "tca",
+            "isrs", "atls", "fast", "gold", "nihss", "wells", "curb", "brca", "hpv",
+            "vph", "vsr", "bcg", "vop", "dtpa", "sro", "torch", "cmv", "erge"
+        }
+
+        tema_norm_t4 = _norm(tema_limpio)
+        tokens_largos = [
+            w for w in re.findall(r'\b[a-z]{4,}\b', tema_norm_t4)
+            if w not in stopwords_med
         ]
-        kws_especificas = list(dict.fromkeys(tokens_tema))
+        tokens_siglas = [
+            w for w in re.findall(r'\b[a-z0-9]{3,5}\b', tema_norm_t4)
+            if w in siglas_t4
+        ]
+        kws_especificas = list(dict.fromkeys(tokens_largos + tokens_siglas))
 
         choices_df = get_sheet_data("choices")
         err_t4_df = get_sheet_data("error_log")
@@ -1008,7 +1048,6 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 patron_br = "revalida|enamed|inep|brasil|sus"
                 df_busqueda = df_busqueda[df_busqueda["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
-            # Detectar área tanto por el título de la semana como por el tema del día
             contexto_area = _norm(f"{semana_estudio} {tema_limpio}")
             if "area" in df_busqueda.columns:
                 area_norm = df_busqueda["area"].apply(_norm)
@@ -1032,29 +1071,55 @@ elif menu == "📚 Algoritmos y Quiz Diario":
             preg_col = df_busqueda["pregunta"].apply(_norm) if "pregunta" in df_busqueda.columns else pd.Series("", index=df_busqueda.index)
 
             scores = pd.Series(0, index=df_busqueda.index)
-            for kw in kws_especificas[:6]:
-                scores += tema_col.str.contains(re.escape(kw), na=False).astype(int) * 3
-                scores += preg_col.str.contains(re.escape(kw), na=False).astype(int) * 1
+            for kw in kws_especificas:
+                pat_kw = r"\b" + re.escape(kw) + r"\b"
+                scores += tema_col.str.contains(pat_kw, na=False).astype(int) * 3
+                scores += preg_col.str.contains(pat_kw, na=False).astype(int) * 1
 
             df_busqueda["_score"] = scores
-            df_busqueda["_es_nueva"] = (~df_busqueda["id"].astype(str).str.strip().isin(hechas_t4_ids)).astype(int)
+            df_busqueda["id_str"] = df_busqueda["id"].astype(str).str.strip()
+            df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False).copy()
 
-            # Priorizar preguntas nuevas primero y luego mayor coincidencia temática
-            df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values(
-                ["_es_nueva", "_score"], ascending=[False, False]
-            )
-            pool_tema = df_filtradas.drop(columns=["_score", "_es_nueva"]).head(max(cant_preguntas * 3, 30))
-            seed_usr = st.session_state.setdefault(f"seed_t4_{tema_limpio[:15]}", random.randint(1, 99999))
-            quiz_q = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr)
+            total_encontradas_tema = len(df_filtradas)
+
+            if solo_nuevas_t4:
+                df_candidatas = df_filtradas[~df_filtradas["id_str"].isin(hechas_t4_ids)].copy()
+            else:
+                df_candidatas = df_filtradas.copy()
+
+            # Congelar la tanda actual por tema y cantidad para que no salte al responder P1, P2...
+            batch_key = f"batch_ids_t4_{tema_limpio[:20]}"
+            meta_key = f"batch_meta_t4_{tema_limpio[:20]}"
+            meta_actual = (cant_preguntas, solo_nuevas_t4, filtro_pais)
+
+            if st.session_state.get(meta_key) != meta_actual or batch_key not in st.session_state:
+                seed_usr = st.session_state.setdefault(f"seed_t4_{tema_limpio[:20]}", random.randint(1, 999999))
+                if not df_candidatas.empty:
+                    # Tomar un pool amplio de las más relevantes y mezclar
+                    pool_tema = df_candidatas.head(max(cant_preguntas * 3, 45))
+                    seleccion = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr)
+                    st.session_state[batch_key] = seleccion["id_str"].tolist()
+                else:
+                    st.session_state[batch_key] = []
+                st.session_state[meta_key] = meta_actual
+
+            ids_tanda = st.session_state.get(batch_key, [])
+            if ids_tanda:
+                df_tanda = df_filtradas[df_filtradas["id_str"].isin(ids_tanda)].copy()
+                orden_tanda = {cid: pos for pos, cid in enumerate(ids_tanda)}
+                df_tanda["_ord"] = df_tanda["id_str"].map(orden_tanda)
+                quiz_q = df_tanda.sort_values("_ord").drop(columns=["_score", "id_str", "_ord"])
 
         if quiz_q.empty:
             st.info(
-                f"No encontré choices en tu base que coincidan específicamente con **{tema_limpio}** "
-                f"(términos buscados: `{', '.join(kws_especificas[:5]) if kws_especificas else 'ninguno'}`). "
-                "Podés generar preguntas nuevas para este tema o practicar desde el Banco de Choices."
+                f"No hay preguntas {'nuevas ' if solo_nuevas_t4 else ''}disponibles en tu base para **{tema_limpio}**. "
+                "Probá destildando 'Solo preguntas nuevas', haciendo clic en '🔄 Nueva tanda' o generando más con IA."
             )
         else:
-            st.caption(f"Mostrando **{len(quiz_q)}** preguntas disponibles para este tema (máximo elegido: {cant_preguntas}).")
+            st.caption(
+                f"Mostrando **{len(quiz_q)}** preguntas en esta tanda "
+                f"(de **{total_encontradas_tema}** encontradas en total para este tema)."
+            )
             for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
                 t4_ya_respondida = st.session_state.get(f"t4_done_{q_row['id']}", False)
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
@@ -1122,7 +1187,7 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                                     err_act.at[ix, "regla_oro"] = nota_t4
                                     save_sheet_data("error_log", err_act)
                                     st.success("✅ Notita guardada en Google Sheets.")
-                st.markdown("---")
+                st.markdown("---") 
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
