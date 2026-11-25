@@ -803,11 +803,13 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                                 err_act = get_sheet_data("error_log")
                                 lid = st.session_state.get(f"srs_log_{q_srs['id']}")
                                 if not err_act.empty and lid in err_act["id"].values:
+                                    err_act["motivo_error"] = err_act["motivo_error"].fillna("").astype(object)
+                                    err_act["regla_oro"] = err_act["regla_oro"].fillna("").astype(object)
                                     ix = err_act[err_act["id"] == lid].index[-1]
-                                    err_act.at[ix, "motivo_error"] = mot_srs
-                                    err_act.at[ix, "regla_oro"] = nota_srs
+                                    err_act.at[ix, "motivo_error"] = str(mot_srs)
+                                    err_act.at[ix, "regla_oro"] = str(nota_srs)
                                     save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.")
+                                    st.success("✅ Notita guardada en Google Sheets.") 
 
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
@@ -1182,12 +1184,13 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                                 err_act = get_sheet_data("error_log")
                                 lid = st.session_state.get(f"t4_log_{q_row['id']}")
                                 if not err_act.empty and lid in err_act["id"].values:
+                                    err_act["motivo_error"] = err_act["motivo_error"].fillna("").astype(object)
+                                    err_act["regla_oro"] = err_act["regla_oro"].fillna("").astype(object)
                                     ix = err_act[err_act["id"] == lid].index[-1]
-                                    err_act.at[ix, "motivo_error"] = mot_t4
-                                    err_act.at[ix, "regla_oro"] = nota_t4
+                                    err_act.at[ix, "motivo_error"] = str(mot_t4)
+                                    err_act.at[ix, "regla_oro"] = str(nota_t4)
                                     save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.")
-                st.markdown("---") 
+                                    st.success("✅ Notita guardada en Google Sheets.") 
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
@@ -1561,11 +1564,13 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                 err_actual = get_sheet_data("error_log")
                                 log_target = st.session_state.get(f"ultimo_log_{q['id']}")
                                 if not err_actual.empty and log_target in err_actual["id"].values:
+                                    err_actual["motivo_error"] = err_actual["motivo_error"].fillna("").astype(object)
+                                    err_actual["regla_oro"] = err_actual["regla_oro"].fillna("").astype(object)
                                     idx_log = err_actual[err_actual["id"] == log_target].index[-1]
-                                    err_actual.at[idx_log, "motivo_error"] = motivo_sel
-                                    err_actual.at[idx_log, "regla_oro"] = nota_personal
+                                    err_actual.at[idx_log, "motivo_error"] = str(motivo_sel)
+                                    err_actual.at[idx_log, "regla_oro"] = str(nota_personal)
                                     save_sheet_data("error_log", err_actual)
-                                    st.success("✅ Notita guardada en Google Sheets.") 
+                                    st.success("✅ Notita guardada en Google Sheets.")  
 
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
