@@ -1268,18 +1268,30 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     "abordaje", "seguimiento", "prevencion", "prevención", "clasificacion",
                     "clasificación", "examen", "residencia", "pura", "mitad", "primera",
                     "segunda", "cierre", "urgencias", "medicas", "omitidas", "inicial",
-                    "complicaciones", "infecciones", "trastornos"
+                    "complicaciones", "infecciones", "trastornos", "bloque", "choices",
+                    "oficiales", "modulo", "satelite", "cuaderno", "errores", "repaso",
+                    "ginecologia", "obstetricia", "tocoginecologia", "pediatria", "neonatologia",
+                    "cirugia", "simulacro", "masivo", "integrador", "bateria", "cronometrada",
+                    "inep", "caba", "unico", "revalida", "argentina", "brasil"
                 }
 
-                textos_semana = " ".join(
+                # Reunir solo los días con contenido real (excluyendo bloques masivos sin tema específico)
+                temas_con_contenido = [
+                    item for item in cronograma_activo[semana_sel]
+                    if not any(
+                        p in _norm_banco(item["Tema Específico"])
+                        for p in ["bloque masivo", "bloque de 70", "simulacro general", "simulacro oficial", "maraton legal"]
+                    )
+                ]
+                texto_area_sem = " ".join(item["Tema Específico"] for item in temas_con_contenido) if temas_con_contenido else " ".join(
                     item["Tema Específico"] for item in cronograma_activo[semana_sel]
                 )
 
                 df_base_sem = df_activa.copy()
-                sem_norm_b = _norm_banco(f"{semana_sel} {textos_semana[:250]}")
+                sem_norm_b = _norm_banco(f"{semana_sel} {texto_area_sem[:300]}")
                 if "area" in df_base_sem.columns:
                     area_norm_b = df_base_sem["area"].apply(_norm_banco)
-                    if any(k in sem_norm_b for k in ["gineco", "obstetri", "tocogineco", "preeclampsia", "parto", "cervical"]):
+                    if any(k in sem_norm_b for k in ["gineco", "obstetri", "tocogineco", "preeclampsia", "parto", "cervical", "mamaria"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("gineco|obstetri|tocogineco", na=False)]
                     elif any(k in sem_norm_b for k in ["pediatr", "neonato", "bronquiolitis", "puericultura"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("pediatr|neonato", na=False)]
@@ -1295,21 +1307,20 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     if not df_a_b.empty:
                         df_base_sem = df_a_b
 
+                tema_c = df_base_sem["tema"].apply(_norm_banco)
+                preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
+
                 if alcance_semana == "🗓️ Toda la semana completa":
                     kws_sem = [
-                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', textos_semana)
+                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', texto_area_sem)
                         if _norm_banco(w) not in stop_words_b
                     ]
                     kws_sem = list(dict.fromkeys(kws_sem))
 
                     if kws_sem:
-                        tema_c = df_base_sem["tema"].apply(_norm_banco)
-                        preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
-                        scores_s = pd.Series(0, index=df_base_sem.index)
-                        for kw in kws_sem[:25]:
-                            scores_s += tema_c.str.contains(re.escape(kw), na=False).astype(int) * 2
-                            scores_s += preg_c.str.contains(re.escape(kw), na=False).astype(int) * 1
-                        filtered_df = df_base_sem[scores_s > 0].copy()
+                        patron_sem = "|".join(re.escape(kw) for kw in kws_sem)
+                        mask_sem = tema_c.str.contains(patron_sem, na=False) | preg_c.str.contains(patron_sem, na=False)
+                        filtered_df = df_base_sem[mask_sem].copy()
                     else:
                         filtered_df = df_base_sem.copy()
 
@@ -1322,8 +1333,9 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     st.caption(f"🗓️ Bloque semanal completo ({semana_sel}): **{len(filtered_df)}** preguntas disponibles.")
 
                 else:
-                    temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_activo[semana_sel]]
-                    tema_sel = st.selectbox("Elegí el Tema del Día:", temas_lista)
+                    lista_dias_validos = temas_con_contenido if temas_con_contenido else cronograma_activo[semana_sel]
+                    temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in lista_dias_validos]
+                    tema_sel = st.selectbox("Elegí el Tema del Día (Lunes a Viernes y Módulo Satélite):", temas_lista)
                     tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
 
                     kws_dia = [
@@ -1333,10 +1345,8 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     kws_dia = list(dict.fromkeys(kws_dia))
 
                     if kws_dia:
-                        tema_c = df_base_sem["tema"].apply(_norm_banco)
-                        preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
                         scores_d = pd.Series(0, index=df_base_sem.index)
-                        for kw in kws_dia[:6]:
+                        for kw in kws_dia:
                             scores_d += tema_c.str.contains(re.escape(kw), na=False).astype(int) * 3
                             scores_d += preg_c.str.contains(re.escape(kw), na=False).astype(int) * 1
                         filtered_df = df_base_sem.assign(_sc=scores_d)
@@ -1466,7 +1476,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                     err_actual.at[idx_log, "motivo_error"] = motivo_sel
                                     err_actual.at[idx_log, "regla_oro"] = nota_personal
                                     save_sheet_data("error_log", err_actual)
-                                    st.success("✅ Notita guardada en Google Sheets.")
+                                    st.success("✅ Notita guardada en Google Sheets.") 
 
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
