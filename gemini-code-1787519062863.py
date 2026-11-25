@@ -1262,20 +1262,50 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     return str(txt).translate(reemplazos).lower()
 
                 stop_words_b = {
-                    "enfoque", "manejo", "conducta", "criterios", "diagnostico", "diagnóstico",
-                    "tratamiento", "general", "clinica", "clínica", "patologia", "patología",
-                    "control", "evaluacion", "evaluación", "protocolo", "guia", "guía",
-                    "abordaje", "seguimiento", "prevencion", "prevención", "clasificacion",
-                    "clasificación", "examen", "residencia", "pura", "mitad", "primera",
-                    "segunda", "cierre", "urgencias", "medicas", "omitidas", "inicial",
-                    "complicaciones", "infecciones", "trastornos", "bloque", "choices",
-                    "oficiales", "modulo", "satelite", "cuaderno", "errores", "repaso",
-                    "ginecologia", "obstetricia", "tocoginecologia", "pediatria", "neonatologia",
-                    "cirugia", "simulacro", "masivo", "integrador", "bateria", "cronometrada",
-                    "inep", "caba", "unico", "revalida", "argentina", "brasil"
+                    "enfoque", "manejo", "conducta", "criterios", "criterio", "diagnostico",
+                    "tratamiento", "general", "clinica", "clinico", "patologia", "control",
+                    "evaluacion", "protocolo", "protocolos", "guia", "guias", "abordaje",
+                    "seguimiento", "prevencion", "clasificacion", "examen", "residencia",
+                    "pura", "mitad", "primera", "segunda", "tercera", "cierre", "urgencias",
+                    "urgencia", "medicas", "medica", "medico", "omitidas", "inicial",
+                    "complicaciones", "infecciones", "infeccion", "trastornos", "trastorno",
+                    "bloque", "choices", "oficiales", "modulo", "satelite", "cuaderno",
+                    "errores", "repaso", "ginecologia", "obstetricia", "tocoginecologia",
+                    "pediatria", "neonatologia", "cirugia", "simulacro", "masivo",
+                    "integrador", "bateria", "cronometrada", "inep", "caba", "unico",
+                    "revalida", "argentina", "brasil", "desde", "hasta", "luego", "entre",
+                    "sobre", "durante", "mediante", "segun", "ante", "frente", "tras",
+                    "anual", "bienal", "mensual", "semanal", "diario", "negativos",
+                    "negativo", "positivos", "positivo", "anos", "meses", "semanas",
+                    "dias", "horas", "consenso", "fasgo", "msal", "ministerio", "salud",
+                    "paciente", "pacientes", "mujer", "mujeres", "nino", "ninos",
+                    "adulto", "adultos", "mayor", "menor", "agudo", "aguda", "cronico",
+                    "cronica", "primario", "primaria", "secundario", "secundaria",
+                    "indicacion", "indicaciones", "contraindicacion", "contraindicaciones",
+                    "esquema", "esquemas", "dosis", "via", "oral", "riesgo", "alta", "baja"
                 }
 
-                # Reunir solo los días con contenido real (excluyendo bloques masivos sin tema específico)
+                siglas_medicas = {
+                    "pap", "epi", "sop", "itu", "ive", "ile", "diu", "siu", "vih", "hiv",
+                    "tbc", "acv", "iam", "sca", "tep", "hta", "dm2", "cad", "ehh", "erc",
+                    "pbe", "suh", "nac", "oma", "tea", "rcp", "vpp", "ttn", "sam", "tec",
+                    "hsa", "les", "pti", "cid", "sus", "esf", "ubs", "acs", "cat", "tca",
+                    "isrs", "atls", "fast", "gold", "nihss", "wells", "curb", "brca", "hpv",
+                    "vph", "vsr", "bcg", "vop", "dtpa", "sro", "torch", "cmv", "erge"
+                }
+
+                def _extraer_kws(texto: str) -> list:
+                    txt_n = _norm_banco(texto)
+                    palabras_largas = [
+                        w for w in re.findall(r'\b[a-z]{5,}\b', txt_n)
+                        if w not in stop_words_b
+                    ]
+                    siglas_encontradas = [
+                        w for w in re.findall(r'\b[a-z0-9]{3,5}\b', txt_n)
+                        if w in siglas_medicas
+                    ]
+                    return list(dict.fromkeys(palabras_largas + siglas_encontradas))
+
                 temas_con_contenido = [
                     item for item in cronograma_activo[semana_sel]
                     if not any(
@@ -1311,14 +1341,10 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 preg_c = df_base_sem["pregunta"].apply(_norm_banco) if "pregunta" in df_base_sem.columns else pd.Series("", index=df_base_sem.index)
 
                 if alcance_semana == "🗓️ Toda la semana completa":
-                    kws_sem = [
-                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', texto_area_sem)
-                        if _norm_banco(w) not in stop_words_b
-                    ]
-                    kws_sem = list(dict.fromkeys(kws_sem))
+                    kws_sem = _extraer_kws(texto_area_sem)
 
                     if kws_sem:
-                        patron_sem = "|".join(re.escape(kw) for kw in kws_sem)
+                        patron_sem = r"\b(?:" + "|".join(re.escape(kw) for kw in kws_sem) + r")\b"
                         mask_sem = tema_c.str.contains(patron_sem, na=False) | preg_c.str.contains(patron_sem, na=False)
                         filtered_df = df_base_sem[mask_sem].copy()
                     else:
@@ -1330,7 +1356,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     else:
                         filtered_df = filtered_df.reset_index(drop=True)
 
-                    st.caption(f"🗓️ Bloque semanal completo ({semana_sel}): **{len(filtered_df)}** preguntas disponibles.")
+                    st.caption(f"🗓️ Bloque semanal completo ({semana_sel}): **{len(filtered_df)}** preguntas únicas disponibles.")
 
                 else:
                     lista_dias_validos = temas_con_contenido if temas_con_contenido else cronograma_activo[semana_sel]
@@ -1338,23 +1364,21 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     tema_sel = st.selectbox("Elegí el Tema del Día (Lunes a Viernes y Módulo Satélite):", temas_lista)
                     tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
 
-                    kws_dia = [
-                        _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', tema_limpio)
-                        if _norm_banco(w) not in stop_words_b
-                    ]
-                    kws_dia = list(dict.fromkeys(kws_dia))
+                    kws_dia = _extraer_kws(tema_limpio)
 
                     if kws_dia:
                         scores_d = pd.Series(0, index=df_base_sem.index)
                         for kw in kws_dia:
-                            scores_d += tema_c.str.contains(re.escape(kw), na=False).astype(int) * 3
-                            scores_d += preg_c.str.contains(re.escape(kw), na=False).astype(int) * 1
+                            pat_kw = r"\b" + re.escape(kw) + r"\b"
+                            scores_d += tema_c.str.contains(pat_kw, na=False).astype(int) * 3
+                            scores_d += preg_c.str.contains(pat_kw, na=False).astype(int) * 1
+                        # Exigir coincidencia en el tema (score >= 3) o al menos 2 términos en el enunciado (score >= 2)
                         filtered_df = df_base_sem.assign(_sc=scores_d)
-                        filtered_df = filtered_df[filtered_df["_sc"] > 0].sort_values("_sc", ascending=False).drop(columns=["_sc"]).reset_index(drop=True)
+                        filtered_df = filtered_df[filtered_df["_sc"] >= 2].sort_values("_sc", ascending=False).drop(columns=["_sc"]).reset_index(drop=True)
                     else:
                         filtered_df = df_base_sem.head(0)
 
-                    st.caption(f"🎯 Preguntas filtradas para este tema: **{len(filtered_df)}**")
+                    st.caption(f"🎯 Preguntas específicas para este tema: **{len(filtered_df)}**") 
 
             elif modo_practica == "📚 Por Área Específica":
                 areas_disponibles = sorted(list(df_activa["area"].dropna().unique()))
