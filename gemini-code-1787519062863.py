@@ -6,6 +6,7 @@ import random
 import hashlib
 import json
 import re
+import math
 import google.generativeai as genai
 
 # Conexión a Google Sheets
@@ -40,26 +41,26 @@ if GEMINI_API_KEY:
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-3.6-flash")
-    except Exception as e:
+    except Exception:
         model = None
 
 # -------------------------------------------------------------
-# FUNCIONES IA CON CACHÉ (AQUÍ DEBEN ESTAR)
+# FUNCIONES IA CON CACHÉ
 # -------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def obtener_algoritmo_cached(tema: str):
     if not model:
         return 'graph TD\n    A["⚠️ API de Gemini no configurada"]'
-    
+
     prompt = f"""
     Generá un diagrama de flujo en código Mermaid.js sobre el diagnóstico y conducta clínica de: {tema}.
     
     REGLAS DE SINTAXIS ESTRICTAS:
-    1. Empezá con 'graph TD'.
-    2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
-    3. Cada conexión DEBE estar en una línea separada.
-    4. NO uses caracteres especiales sin comillas.
-    5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
+1. Empezá con 'graph TD'.
+2. TODO el texto dentro de corchetes o llaves DEBE ir entre comillas dobles: A["Texto"] o B{{"Decisión"}}.
+3. Cada conexión DEBE estar en una línea separada.
+4. NO uses caracteres especiales sin comillas.
+5. Devolvé ÚNICAMENTE el bloque Mermaid, sin texto previo ni posterior.
     """
     res = model.generate_content(prompt)
     mermaid_code = res.text.replace("```mermaid", "").replace("```", "").strip()
@@ -79,7 +80,7 @@ def obtener_perlas_cached(tema: str):
 def obtener_comparativa_cached(tema: str):
     if not model:
         return "⚠️ Modelo no configurado."
-        
+
     c_prompt = f"""
     Sos un docente médico especialista en el Examen Único de Residencias Médicas de Argentina y en el Revalida de Brasil.
     
@@ -89,77 +90,26 @@ def obtener_comparativa_cached(tema: str):
     
     Estructurá tu respuesta con los siguientes puntos:
     
-    1. 🇦🇷 Conducta y Protocolos en Argentina:
-       - Criterios diagnósticos y clasificación según Ministerio de Salud de la Nación (MSAL) y consensos de sociedades científicas (ej. FASGO, SADI, SATI).
-       - Esquema terapéutico de 1ª elección exacto (fármaco, dosis, vía y duración).
-       - Criterios de internación vs. manejo ambulatorio.
+1. 🇦🇷 Conducta y Protocolos en Argentina:
+  - Criterios diagnósticos y clasificación según Ministerio de Salud de la Nación (MSAL) y consensos de sociedades científicas (ej. FASGO, SADI, SATI).
+  - Esquema terapéutico de 1ª elección exacto (fármaco, dosis, vía y duración).
+  - Criterios de internación vs. manejo ambulatorio.
        
-    2. 🇧🇷 Conduta e Diretrizes no Brasil:
-       - Protocolos Clínicos e Diretrizes Terapêuticas (PCDT / Ministério da Saúde / SUS).
-       - Esquema terapéutico de 1ª escolha da RENAME/SUS (medicamentos exatos, posologia).
-       - Notificação compulsória (se é de notificação imediata em 24h ou semanal pelo Sinan).
+2. 🇧🇷 Conduta e Diretrizes no Brasil:
+- Protocolos Clínicos e Diretrizes Terapêuticas (PCDT / Ministério da Saúde / SUS).
+  - Esquema terapéutico de 1ª escolha da RENAME/SUS (medicamentos exatos, posologia).
+  - Notificação compulsória (se é de notificação imediata em 24h ou semanal pelo Sinan).
        
-    3. ⚖️ Diferencias Críticas y Puntos de Conflicto (AR vs BR):
-       - Contrastá punto por punto: ¿dónde difieren los esquemas antibióticos o farmacológicos?, ¿qué conducta es más conservadora o intervencionista?, ¿qué fármacos disponibles en un país no son de primera línea en el otro?
+3. ⚖️ Diferencias Críticas y Puntos de Conflicto (AR vs BR):
+- Contrastá punto por punto: ¿dónde difieren los esquemas antibióticos o farmacológicos?, ¿qué conducta es más conservadora o intervencionista?, ¿qué fármacos disponibles en un país no son de primera línea en el otro?
        
-    4. 💡 Perlas de Examen (High-Yield):
-       - Trampas clásicas de examen choice para el Examen Único de Argentina.
-       - Trampas y pegadinhas clásicas de examen para el Revalida (INEP/SUS).
+4. 💡 Perlas de Examen (High-Yield):
+- Trampas clásicas de examen choice para el Examen Único de Argentina.
+  - Trampas y pegadinhas clásicas de examen para el Revalida (INEP/SUS).
     """
     res = model.generate_content(c_prompt)
     return res.text
 
-def actualizar_srs_choice(choice_id: str, es_correcta: int):
-    """Actualiza next_review, interval_days, ease_factor y repetitions en la hoja 'choices'."""
-    df_c = get_sheet_data("choices")
-    if df_c.empty or "id" not in df_c.columns:
-        return
-
-    mask = df_c["id"].astype(str) == str(choice_id)
-    if not mask.any():
-        return
-
-    idx = df_c[mask].index[0]
-    hoy = datetime.now().date()
-
-    try:
-        reps = int(float(df_c.at[idx, "repetitions"])) if pd.notna(df_c.at[idx, "repetitions"]) else 0
-    except Exception:
-        reps = 0
-
-    try:
-        interval = int(float(df_c.at[idx, "interval_days"])) if pd.notna(df_c.at[idx, "interval_days"]) else 1
-    except Exception:
-        interval = 1
-
-    try:
-        ef = float(str(df_c.at[idx, "ease_factor"]).replace(",", ".")) if pd.notna(df_c.at[idx, "ease_factor"]) else 2.5
-    except Exception:
-        ef = 2.5
-
-    if es_correcta == 1:
-        if reps == 0:
-            interval = 2
-        elif reps == 1:
-            interval = 6
-        else:
-            interval = max(1, round(interval * ef))
-        reps += 1
-        ef = max(1.3, round(ef + 0.1, 2))
-    else:
-        reps = 0
-        interval = 1
-        ef = max(1.3, round(ef - 0.2, 2))
-
-    proxima_fecha = (hoy + timedelta(days=interval)).strftime("%Y-%m-%d")
-
-    df_c.at[idx, "repetitions"] = reps
-    df_c.at[idx, "interval_days"] = interval
-    df_c.at[idx, "ease_factor"] = ef
-    df_c.at[idx, "next_review"] = proxima_fecha
-
-    save_sheet_data("choices", df_c)
-    
 # -------------------------------------------------------------
 # CONEXIÓN OPTIMIZADA A GOOGLE SHEETS (ALTA VELOCIDAD)
 # -------------------------------------------------------------
@@ -186,20 +136,17 @@ def save_sheet_data(worksheet_name, df):
 def calcular_racha_activa(username, error_df, progreso_df):
     """Calcula los días consecutivos de actividad para un usuario."""
     fechas_actividad = set()
-    
-    # 1. Fechas de choices respondidos
+
     if not error_df.empty and "username" in error_df.columns and "fecha" in error_df.columns:
-        user_err = error_df[error_df["username"].astype(str) == username]
+        user_err = error_df[error_df["username"].astype(str) == str(username)]
         for f in user_err["fecha"].dropna():
             try:
-                # Extrae la parte YYYY-MM-DD
                 fechas_actividad.add(str(f)[:10])
             except Exception:
                 pass
 
-    # 2. Fechas de temas marcados en el cronograma (si hay registros)
     if not progreso_df.empty and "username" in progreso_df.columns:
-        user_prog = progreso_df[progreso_df["username"].astype(str) == username]
+        user_prog = progreso_df[progreso_df["username"].astype(str) == str(username)]
         if "fecha" in user_prog.columns:
             for f in user_prog["fecha"].dropna():
                 try:
@@ -210,7 +157,6 @@ def calcular_racha_activa(username, error_df, progreso_df):
     if not fechas_actividad:
         return 0
 
-    # Fechas únicas ordenadas como objetos date
     fechas_validas = []
     for f_str in fechas_actividad:
         try:
@@ -225,13 +171,12 @@ def calcular_racha_activa(username, error_df, progreso_df):
     hoy = datetime.now().date()
     ayer = hoy - timedelta(days=1)
 
-    # Si hubo actividad hoy, arrancamos desde hoy; si no, desde ayer (si hubo)
     if hoy in fechas_set:
         cursor = hoy
     elif ayer in fechas_set:
         cursor = ayer
     else:
-        return 0  # Se rompió la racha
+        return 0
 
     racha = 0
     while cursor in fechas_set:
@@ -239,7 +184,7 @@ def calcular_racha_activa(username, error_df, progreso_df):
         cursor -= timedelta(days=1)
 
     return racha
-        
+
 # -------------------------------------------------------------
 # CRONOGRAMA MAESTRO DE ESTUDIO (20 SEMANAS ESTRUCTURADAS)
 # -------------------------------------------------------------
@@ -460,18 +405,15 @@ cronograma_desglosado = {
         {"Día": "Viernes", "Tema Específico": "Cierre de estudio, calibración del ritmo de 1 minuto por pregunta y descanso mental pre-examen."}
     ]
 }
-import math
 
 def obtener_cronograma_personalizado(modalidad_plan):
     """
     Retorna el cronograma adaptado según la duración elegida por el usuario,
     manteniendo la estructura original o aplicando compresión/filtrado.
     """
-    # 1. Tu plan base original intacto
     if modalidad_plan == "🌟 Completo Estándar (20 Semanas)":
         return cronograma_desglosado
 
-    # 2. Extraer todos los ítems ordenados
     todos_los_items = []
     for sem_nombre, dias in cronograma_desglosado.items():
         for d in dias:
@@ -480,7 +422,6 @@ def obtener_cronograma_personalizado(modalidad_plan):
                 "tema": d["Tema Específico"]
             })
 
-    # 3. Plan Crash 5 Semanas: Filtrado High-Yield (lo más tomado)
     if modalidad_plan == "🎯 High-Yield / Solo lo Más Tomado (5 Semanas)":
         palabras_clave_hy = [
             "preeclampsia", "hemorragia", "parto", "aborto", "ectópico",
@@ -495,7 +436,6 @@ def obtener_cronograma_personalizado(modalidad_plan):
         ]
         return _repartir_en_semanas(items_filtrados, semanas=5)
 
-    # 4. Planes de 15, 12 y 10 semanas: 100% del temario compactado
     semanas_map = {
         "⚡ Completo Acelerado (15 Semanas)": 15,
         "🔥 Intensivo Doble Turno (12 Semanas)": 12,
@@ -504,35 +444,30 @@ def obtener_cronograma_personalizado(modalidad_plan):
     semanas_meta = semanas_map.get(modalidad_plan, 20)
     return _repartir_en_semanas(todos_los_items, semanas=semanas_meta)
 
-
 def _repartir_en_semanas(lista_items, semanas):
-    """Distribui os temas agrupando-os de imediato por dia da semana."""
+    """Distribuye los temas agrupándolos por día de la semana."""
     total = len(lista_items)
     items_por_semana = math.ceil(total / semanas)
     cronograma_res = {}
-    
     dias_base = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
     idx = 0
     for s in range(1, semanas + 1):
         clave_semana = f"Semana {s} (de {semanas})"
         dias_lista = []
-        
-        # Agrupar temas da semana por cada um dos 7 dias
         temas_por_dia = {d: [] for d in dias_base}
-        
+
         for i in range(items_por_semana):
             if idx < total:
                 dia_atribuido = dias_base[i % 7]
                 temas_por_dia[dia_atribuido].append(lista_items[idx]["tema"])
                 idx += 1
-                
-        # Construir os registos mantendo os temas do mesmo dia juntos
+
         for dia_nome in dias_base:
             lista_temas_dia = temas_por_dia[dia_nome]
             if not lista_temas_dia:
                 continue
-                
+
             if len(lista_temas_dia) == 1:
                 dias_lista.append({
                     "Día": dia_nome,
@@ -540,17 +475,17 @@ def _repartir_en_semanas(lista_items, semanas):
                 })
             else:
                 for n_tema, texto_tema in enumerate(lista_temas_dia, start=1):
-                    # Identificador visual com seta para subtemas
                     prefixo = "📌" if n_tema == 1 else "↳"
                     dias_lista.append({
                         "Día": f"{dia_nome} — {prefixo} Tema {n_tema}",
                         "Tema Específico": texto_tema
                     })
-                
+
         if dias_lista:
             cronograma_res[clave_semana] = dias_lista
 
     return cronograma_res
+
 # -------------------------------------------------------------
 # CONTROL DE SESIÓN
 # -------------------------------------------------------------
@@ -562,14 +497,13 @@ if "current_user" not in st.session_state:
 def login_form():
     st.title("🩺 Médica HQ | Ingreso a la Plataforma")
     st.caption("Plataforma de Alto Rendimiento para Residencias de Argentina y Revalida de Brasil")
-    
+
     col1, col2 = st.columns([1, 1])
     with col1:
         u_input = st.text_input("Usuario", key="login_user")
         p_input = st.text_input("Contraseña", type="password", key="login_pass")
-        
+
         if st.button("Iniciar Sesión", use_container_width=True):
-            # Acceso directo e instantáneo para no depender de la latencia de red
             if u_input.lower() == "luana" and p_input == "medica2026":
                 st.session_state.authenticated = True
                 st.session_state.current_user = "luana"
@@ -589,7 +523,7 @@ def login_form():
                         st.error("Usuario o contraseña incorrectos.")
                 else:
                     st.error("No se pudo conectar con la lista de usuarios. Verificá los permisos de la planilla.")
-                
+
     with col2:
         with st.expander("Crear una nueva cuenta"):
             new_u = st.text_input("Nuevo Usuario")
@@ -636,10 +570,9 @@ modalidad_cronograma = st.sidebar.selectbox(
         "🚀 Intensivo Crash (10 Semanas)",
         "🎯 High-Yield / Solo lo Más Tomado (5 Semanas)"
     ],
-    index=0  # Por defecto siempre carga el tuyo de 20 semanas
+    index=0
 )
 
-# Cronograma dinámico según el usuario activo
 cronograma_activo = obtener_cronograma_personalizado(modalidad_cronograma)
 
 menu = st.sidebar.radio(
@@ -662,8 +595,7 @@ menu = st.sidebar.radio(
 # -------------------------------------------------------------
 if menu == "🏠 Dashboard":
     st.header(f"⚡ Bienvenido/a, {st.session_state.user_name}")
-    
-    # Cargar datos para métricas
+
     error_df = get_sheet_data("error_log")
     progreso_df = get_sheet_data("progreso_temas")
 
@@ -676,8 +608,7 @@ if menu == "🏠 Dashboard":
         total_correctas = 0
 
     precision = int((total_correctas / total_hechas * 100)) if total_hechas > 0 else 0
-    
-    # Cálculo de la Racha Real
+
     racha_actual = calcular_racha_activa(st.session_state.current_user, error_df, progreso_df)
     texto_racha = f"{racha_actual} Días" if racha_actual != 1 else "1 Día"
 
@@ -690,13 +621,14 @@ if menu == "🏠 Dashboard":
     st.markdown("---")
 
     with st.container(border=True):
-        st.markdown("### 🧭 Cómo usar la plataforma (Orden diario sugerido)")
+        st.markdown("### 🧭 Cómo usar la plataforma (Orden diario y de fin de semana)")
         st.markdown(
             """
-            1. **🔁 Active Recall: Tu Repaso Espaciado:** Arrancá cada sesión entrando a esta pestaña para recuperar de memoria las preguntas vencidas de bloques anteriores antes de estudiar contenido nuevo.
-            2. **📅 Cronograma Semanal Detallado:** Revisá qué tema específico te corresponde estudiar hoy según tu semana en curso y tildalo al completarlo.
-            3. **📚 Algoritmos y Quiz Diario:** Elegí la semana y el tema del día, repasá su algoritmo, perlas high-yield o comparativa AR vs. BR, y cerrá resolviendo el **Quiz Rápido del Tema** (ajustando la cantidad de preguntas según tu tiempo disponible).
-            4. **📕 Cuaderno de Errores & 📝 Simulacros:** Cada fallo o duda se registra automáticamente con opción de agregar tu *Regla de Oro*. Usá los **domingos** para hacer bloques integradores en *Banco de Choices & Simulacros* y leer tu *Modo Resumen*.
+1. **🔁 Active Recall: Tu Repaso Espaciado:** Arrancá cada sesión entrando a esta pestaña para recuperar de memoria las preguntas vencidas de bloques anteriores antes de estudiar contenido nuevo.
+2. **📅 Cronograma Semanal Detallado:** Revisá qué tema específico te corresponde estudiar hoy según tu semana en curso y tildalo al completarlo.
+3. **📚 Algoritmos y Quiz Diario:** Elegí la semana y el tema del día, repasá su algoritmo, perlas high-yield o comparativa AR vs. BR, y cerrá resolviendo el **Quiz Rápido del Tema** (ajustando la cantidad de preguntas según tu tiempo disponible).
+4. **📕 Cuaderno de Errores:** Cada fallo o duda se registra automáticamente con opción de agregar tu *Regla de Oro*; usá el **Modo Resumen** para repasar únicamente tus notas clave antes de rendir.
+5. **📝 Banco de Choices & Simulacros (Fines de Semana y Bloques Masivos):** Reservá esta sección para los sábados y domingos para hacer baterías largas de **toda la semana completa**, repasos integradores por **especialidad** o **simulacros aleatorios** filtrando solo preguntas nuevas.
             """
         )
 
@@ -723,7 +655,6 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
             logs_usr["fecha_dt"] = pd.to_datetime(logs_usr["fecha"], errors="coerce")
             logs_usr = logs_usr[logs_usr["fecha_dt"].notna()].sort_values("fecha_dt", ascending=True)
 
-            # Calcular próxima fecha de repaso por pregunta solo para ESTE usuario (evitando bola de nieve)
             vencidas_ids = []
             for cid, grupo in logs_usr.groupby("choice_id_str"):
                 ultima_fecha = grupo["fecha_dt"].iloc[-1].date()
@@ -732,12 +663,10 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
 
                 hubo_fallo_o_duda = (0 in resultados) or (1 in dudas)
 
-                # Si falló o marcó duda en el último intento -> mañana (1 día) con máxima prioridad
                 if resultados[-1] == 0 or dudas[-1] == 1:
                     intervalo = 1
                     prioridad = 0
                 elif not hubo_fallo_o_duda:
-                    # Nunca falló ni dudó: intervalo largo para no saturar sesiones futuras
                     n_ok = len(resultados)
                     if n_ok == 1:
                         intervalo = 7
@@ -747,7 +676,6 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                         intervalo = 60
                     prioridad = 2
                 else:
-                    # Tuvo un fallo/duda antes, pero viene recuperando bien
                     racha_ok = 0
                     for r, d in zip(reversed(resultados), reversed(dudas)):
                         if r == 1 and d == 0:
@@ -766,14 +694,12 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                 if proxima_fecha <= hoy_date:
                     vencidas_ids.append((cid, prioridad, proxima_fecha))
 
-            # Ordenar: primero fallos/dudas recientes, luego recuperaciones, y dentro de eso las más atrasadas
             vencidas_ids.sort(key=lambda x: (x[1], x[2]))
             ids_ordenados = [x[0] for x in vencidas_ids]
 
             df_choices_srs["id_str"] = df_choices_srs["id"].astype(str).str.strip()
             df_vencidas = df_choices_srs[df_choices_srs["id_str"].isin(ids_ordenados)].copy()
 
-            # Respetar filtro de país de la barra lateral
             if filtro_pais == "🇦🇷 Solo Argentina":
                 patron_ar = "unico|único|caba|eres|argentina"
                 df_vencidas = df_vencidas[df_vencidas["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
@@ -781,7 +707,6 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                 patron_br = "revalida|enamed|inep|brasil|sus"
                 df_vencidas = df_vencidas[df_vencidas["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
-            # Mantener orden de prioridad y vencimiento
             if not df_vencidas.empty:
                 orden_map = {cid: pos for pos, cid in enumerate(ids_ordenados)}
                 df_vencidas["_ord"] = df_vencidas["id_str"].map(orden_map)
@@ -810,6 +735,7 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                     key="srs_sel_page"
                 )
                 q_srs = df_vencidas.iloc[idx_srs]
+                srs_ya_respondida = st.session_state.get(f"srs_done_{idx_srs}_{q_srs['id']}", False)
 
                 with st.container(border=True):
                     st.markdown(f"**{q_srs['pregunta']}**")
@@ -822,7 +748,11 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                     resp_srs = st.radio("Tu respuesta de memoria:", opts_srs, key=f"srs_rad_{idx_srs}_{q_srs['id']}")
                     duda_srs = st.checkbox("🏷️ Marcar con Duda (enviar al Cuaderno de Errores)", key=f"srs_duda_{idx_srs}_{q_srs['id']}")
 
-                    if st.button("Confirmar y Reprogramar Repaso", key=f"srs_btn_{idx_srs}_{q_srs['id']}"):
+                    if st.button(
+                        "Confirmar y Reprogramar Repaso",
+                        key=f"srs_btn_{idx_srs}_{q_srs['id']}",
+                        disabled=srs_ya_respondida
+                    ):
                         elegida_srs = resp_srs[0]
                         correcta_srs = str(q_srs["correcta"]).strip().upper()
                         acerto_srs = 1 if elegida_srs == correcta_srs else 0
@@ -844,8 +774,9 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
 
                         st.session_state[f"srs_log_{q_srs['id']}"] = log_srs_id
                         st.session_state[f"srs_done_{idx_srs}_{q_srs['id']}"] = True
+                        st.rerun()
 
-                    if st.session_state.get(f"srs_done_{idx_srs}_{q_srs['id']}", False):
+                    if srs_ya_respondida:
                         elegida_srs = resp_srs[0]
                         correcta_srs = str(q_srs["correcta"]).strip().upper()
                         acerto_srs = 1 if elegida_srs == correcta_srs else 0
@@ -876,7 +807,7 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                                     err_act.at[ix, "motivo_error"] = mot_srs
                                     err_act.at[ix, "regla_oro"] = nota_srs
                                     save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.")  
+                                    st.success("✅ Notita guardada en Google Sheets.")
 
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
@@ -885,16 +816,13 @@ elif menu == "📅 Cronograma Semanal Detallado":
     st.header("📅 Cronograma Interactivo de Estudio")
     st.caption("Marcá los temas a medida que los completes para registrar tu avance real.")
 
-    # Cargar o inicializar la tabla de progresos
     progreso_df = get_sheet_data("progreso_temas")
     if progreso_df.empty or "username" not in progreso_df.columns:
         progreso_df = pd.DataFrame(columns=["username", "semana", "dia", "completado"])
 
-    # Filtrar temas completados por el usuario activo
     user_prog = progreso_df[progreso_df["username"].astype(str) == str(st.session_state.current_user)]
     completados_set = set(zip(user_prog["semana"].astype(str), user_prog["dia"].astype(str)))
 
-    # Métricas globales de avance
     total_dias_plan = sum(len(dias) for dias in cronograma_activo.values())
     total_hechos_usr = len(user_prog)
     pct_global = int((total_hechos_usr / total_dias_plan) * 100) if total_dias_plan > 0 else 0
@@ -907,15 +835,12 @@ elif menu == "📅 Cronograma Semanal Detallado":
 
     st.markdown("---")
 
-    # Selector de Semana adaptado al plan activo
     sem_select = st.selectbox("Seleccioná la semana a visualizar:", list(cronograma_activo.keys()))
     dias_semana = cronograma_activo[sem_select]
 
-    # Contador de la semana seleccionada
     hechos_esta_semana = sum(1 for item in dias_semana if (sem_select, item["Día"]) in completados_set)
     st.info(f"Avance de esta semana: **{hechos_esta_semana} de {len(dias_semana)} temas completados**.")
 
-    # Lista de temas en 2 columnas equilibradas (evita que se corte el texto)
     hubo_cambios = False
     for item in dias_semana:
         dia_nombre = item["Día"]
@@ -972,10 +897,10 @@ elif menu == "📚 Algoritmos y Quiz Diario":
 
     col_t1, col_t2 = st.columns(2)
     with col_t1:
-        semana_estudio = st.selectbox("1. Elegí la Semana de Estudio:", list(cronograma_desglosado.keys()))
-    
-    temas_de_la_semana = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_estudio]]
-    
+        semana_estudio = st.selectbox("1. Elegí la Semana de Estudio:", list(cronograma_activo.keys()))
+
+    temas_de_la_semana = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_activo[semana_estudio]]
+
     with col_t2:
         tema_dia_sel = st.selectbox("2. Elegí el Tema del Día:", temas_de_la_semana)
 
@@ -1064,12 +989,18 @@ elif menu == "📚 Algoritmos y Quiz Diario":
         kws_especificas = list(dict.fromkeys(tokens_tema))
 
         choices_df = get_sheet_data("choices")
+        err_t4_df = get_sheet_data("error_log")
+        hechas_t4_ids = set()
+        if not err_t4_df.empty and "username" in err_t4_df.columns:
+            hechas_t4_ids = set(
+                err_t4_df[err_t4_df["username"].astype(str) == str(st.session_state.current_user)]["choice_id"].astype(str).str.strip()
+            )
+
         quiz_q = pd.DataFrame()
 
         if not choices_df.empty and "tema" in choices_df.columns and kws_especificas:
             df_busqueda = choices_df.copy()
 
-            # Respetar filtro de país si está activo
             if filtro_pais == "🇦🇷 Solo Argentina":
                 patron_ar = "unico|único|caba|eres|argentina"
                 df_busqueda = df_busqueda[df_busqueda["examen_origen"].astype(str).str.lower().str.contains(patron_ar, na=False)]
@@ -1077,18 +1008,19 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 patron_br = "revalida|enamed|inep|brasil|sus"
                 df_busqueda = df_busqueda[df_busqueda["examen_origen"].astype(str).str.lower().str.contains(patron_br, na=False)]
 
-            sem_norm = _norm(semana_estudio)
+            # Detectar área tanto por el título de la semana como por el tema del día
+            contexto_area = _norm(f"{semana_estudio} {tema_limpio}")
             if "area" in df_busqueda.columns:
                 area_norm = df_busqueda["area"].apply(_norm)
-                if any(k in sem_norm for k in ["gineco", "obstetri", "tocogineco"]):
+                if any(k in contexto_area for k in ["gineco", "obstetri", "tocogineco", "preeclampsia", "parto", "embarazo", "cervical", "mamaria"]):
                     df_area_f = df_busqueda[area_norm.str.contains("gineco|obstetri|tocogineco", na=False)]
-                elif "pediatr" in sem_norm or "neonato" in sem_norm:
+                elif any(k in contexto_area for k in ["pediatr", "neonato", "bronquiolitis", "puericultura", "infantil"]):
                     df_area_f = df_busqueda[area_norm.str.contains("pediatr|neonato", na=False)]
-                elif "cirug" in sem_norm or "atls" in sem_norm:
+                elif any(k in contexto_area for k in ["cirug", "atls", "trauma", "apendicitis", "colecistitis", "hernia", "quemaduras"]):
                     df_area_f = df_busqueda[area_norm.str.contains("cirug|trauma", na=False)]
-                elif "clinica" in sem_norm:
+                elif any(k in contexto_area for k in ["clinica", "hipertension", "coronario", "diabetes", "tiroid", "epoc", "dengue"]):
                     df_area_f = df_busqueda[area_norm.str.contains("clinica", na=False)]
-                elif any(k in sem_norm for k in ["salud", "mental", "leyes", "preventiva", "publica"]):
+                elif any(k in contexto_area for k in ["salud", "mental", "leyes", "preventiva", "publica", "epidemiologia", "8.080", "26.529"]):
                     df_area_f = df_busqueda[area_norm.str.contains("salud|preventiva|publica|mental|legal", na=False)]
                 else:
                     df_area_f = df_busqueda
@@ -1105,10 +1037,15 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 scores += preg_col.str.contains(re.escape(kw), na=False).astype(int) * 1
 
             df_busqueda["_score"] = scores
-            df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False)
-            pool_tema = df_filtradas.drop(columns=["_score"]).head(max(cant_preguntas * 3, 30))
+            df_busqueda["_es_nueva"] = (~df_busqueda["id"].astype(str).str.strip().isin(hechas_t4_ids)).astype(int)
+
+            # Priorizar preguntas nuevas primero y luego mayor coincidencia temática
+            df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values(
+                ["_es_nueva", "_score"], ascending=[False, False]
+            )
+            pool_tema = df_filtradas.drop(columns=["_score", "_es_nueva"]).head(max(cant_preguntas * 3, 30))
             seed_usr = st.session_state.setdefault(f"seed_t4_{tema_limpio[:15]}", random.randint(1, 99999))
-            quiz_q = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr) 
+            quiz_q = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr)
 
         if quiz_q.empty:
             st.info(
@@ -1119,6 +1056,7 @@ elif menu == "📚 Algoritmos y Quiz Diario":
         else:
             st.caption(f"Mostrando **{len(quiz_q)}** preguntas disponibles para este tema (máximo elegido: {cant_preguntas}).")
             for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
+                t4_ya_respondida = st.session_state.get(f"t4_done_{q_row['id']}", False)
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
                 st.caption(f"📂 {q_row.get('area', '')} | 🏷️ Tema en base: *{q_row.get('tema', '')}*")
                 ans = st.radio(
@@ -1128,9 +1066,12 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 )
                 duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{idx}_{q_row['id']}")
 
-                if st.button(f"Comprobar P{idx+1}", key=f"btn_din_{idx}_{q_row['id']}"):
+                if st.button(
+                    f"Comprobar P{idx+1}",
+                    key=f"btn_din_{idx}_{q_row['id']}",
+                    disabled=t4_ya_respondida
+                ):
                     ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
-                    actualizar_srs_choice(str(q_row['id']), ok_t4)
 
                     err_df = get_sheet_data("error_log")
                     log_t4_id = random.randint(100000, 999999)
@@ -1149,8 +1090,9 @@ elif menu == "📚 Algoritmos y Quiz Diario":
 
                     st.session_state[f"t4_log_{q_row['id']}"] = log_t4_id
                     st.session_state[f"t4_done_{q_row['id']}"] = True
+                    st.rerun()
 
-                if st.session_state.get(f"t4_done_{q_row['id']}", False):
+                if t4_ya_respondida:
                     ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
                     if ok_t4:
                         st.success(f"¡Correcto! Opción {q_row['correcta']}")
@@ -1256,7 +1198,7 @@ elif menu == "✨ Generador de Choices con IA":
                             "ease_factor": 2.5,
                             "repetitions": 0
                         })
-                    
+
                     updated_choices = pd.concat([choices_df, pd.DataFrame(new_rows)], ignore_index=True)
                     save_sheet_data("choices", updated_choices)
 
@@ -1283,7 +1225,6 @@ elif menu == "📝 Banco de Choices & Simulacros":
     if choices_df.empty:
         st.warning("No hay choices cargados en Google Sheets. Podés generarlos con IA o cargar un CSV.")
     else:
-        # 1. Filtro inteligente según el país elegido en la barra lateral
         df_activa = choices_df.copy()
 
         if filtro_pais == "🇦🇷 Solo Argentina":
@@ -1296,10 +1237,8 @@ elif menu == "📝 Banco de Choices & Simulacros":
         if df_activa.empty:
             st.warning(f"No hay preguntas cargadas que coincidan con el filtro '{filtro_pais}'. Podés cambiar a 'Modo Dual' en la barra lateral.")
         else:
-            # Semilla aleatoria propia de la sesión actual de este usuario
             seed_banco = st.session_state.setdefault("seed_banco_usr", random.randint(1, 99999))
 
-            # 2. Modalidad de estudio
             modo_practica = st.radio(
                 "Modalidad de Estudio:",
                 ["📅 Por Tema del Cronograma", "📚 Por Área Específica", "🎲 Simulacro Aleatorio"],
@@ -1309,7 +1248,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
             if modo_practica == "📅 Por Tema del Cronograma":
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    semana_sel = st.selectbox("Elegí la Semana:", list(cronograma_desglosado.keys()))
+                    semana_sel = st.selectbox("Elegí la Semana:", list(cronograma_activo.keys()))
                 with col_s2:
                     alcance_semana = st.radio(
                         "Alcance dentro de la semana:",
@@ -1332,20 +1271,23 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     "complicaciones", "infecciones", "trastornos"
                 }
 
-                # Filtrar primero por área de la semana elegida para no mezclar materias
+                textos_semana = " ".join(
+                    item["Tema Específico"] for item in cronograma_activo[semana_sel]
+                )
+
                 df_base_sem = df_activa.copy()
-                sem_norm_b = _norm_banco(semana_sel)
+                sem_norm_b = _norm_banco(f"{semana_sel} {textos_semana[:250]}")
                 if "area" in df_base_sem.columns:
                     area_norm_b = df_base_sem["area"].apply(_norm_banco)
-                    if any(k in sem_norm_b for k in ["gineco", "obstetri", "tocogineco"]):
+                    if any(k in sem_norm_b for k in ["gineco", "obstetri", "tocogineco", "preeclampsia", "parto", "cervical"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("gineco|obstetri|tocogineco", na=False)]
-                    elif "pediatr" in sem_norm_b or "neonato" in sem_norm_b:
+                    elif any(k in sem_norm_b for k in ["pediatr", "neonato", "bronquiolitis", "puericultura"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("pediatr|neonato", na=False)]
-                    elif "cirug" in sem_norm_b or "atls" in sem_norm_b:
+                    elif any(k in sem_norm_b for k in ["cirug", "atls", "trauma", "apendicitis", "colecistitis"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("cirug|trauma", na=False)]
-                    elif "clinica" in sem_norm_b:
+                    elif any(k in sem_norm_b for k in ["clinica", "hipertension", "coronario", "diabetes", "dengue"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("clinica", na=False)]
-                    elif any(k in sem_norm_b for k in ["salud", "mental", "leyes", "preventiva", "publica"]):
+                    elif any(k in sem_norm_b for k in ["salud", "mental", "leyes", "preventiva", "publica", "epidemiologia"]):
                         df_a_b = df_base_sem[area_norm_b.str.contains("salud|preventiva|publica|mental|legal", na=False)]
                     else:
                         df_a_b = df_base_sem
@@ -1354,9 +1296,6 @@ elif menu == "📝 Banco de Choices & Simulacros":
                         df_base_sem = df_a_b
 
                 if alcance_semana == "🗓️ Toda la semana completa":
-                    textos_semana = " ".join(
-                        item["Tema Específico"] for item in cronograma_desglosado[semana_sel]
-                    )
                     kws_sem = [
                         _norm_banco(w) for w in re.findall(r'\b[A-Za-zÁÉÍÓÚáéíóúñÑ]{4,}\b', textos_semana)
                         if _norm_banco(w) not in stop_words_b
@@ -1383,7 +1322,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     st.caption(f"🗓️ Bloque semanal completo ({semana_sel}): **{len(filtered_df)}** preguntas disponibles.")
 
                 else:
-                    temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_desglosado[semana_sel]]
+                    temas_lista = [f"{item['Día']}: {item['Tema Específico']}" for item in cronograma_activo[semana_sel]]
                     tema_sel = st.selectbox("Elegí el Tema del Día:", temas_lista)
                     tema_limpio = tema_sel.split(":", 1)[1].strip() if ":" in tema_sel else tema_sel
 
@@ -1416,7 +1355,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
             else:
                 filtered_df = df_activa.sample(frac=1, random_state=seed_banco).reset_index(drop=True)
 
-            # 2B. Control de cobertura: filtrar preguntas ya hechas por este usuario
+            # Control de cobertura: filtrar preguntas ya hechas por este usuario
             err_cov = get_sheet_data("error_log")
             hechas_usr = set()
             acertadas_usr = set()
@@ -1433,7 +1372,6 @@ elif menu == "📝 Banco de Choices & Simulacros":
             if solo_nuevas and not filtered_df.empty:
                 filtered_df = filtered_df[~filtered_df["id"].astype(str).str.strip().isin(hechas_usr)].reset_index(drop=True)
 
-            # 3. Visualización ciega y registro en error_log
             if filtered_df.empty:
                 st.warning("No hay preguntas disponibles para esta selección (o ya completaste todas las nuevas de este bloque).")
             else:
@@ -1453,6 +1391,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                     format_func=_etiqueta_preg
                 )
                 q = filtered_df.iloc[q_idx]
+                banco_ya_respondida = st.session_state.get(f"respondido_{q['id']}", False)
 
                 st.markdown(f"#### `{q['examen_origen']}` | **{q['area']}**")
                 st.write(f"### {q['pregunta']}")
@@ -1467,7 +1406,11 @@ elif menu == "📝 Banco de Choices & Simulacros":
                 resp_usr = st.radio("Opciones disponibles:", opciones, key=f"prax_{q['id']}")
                 flag_duda = st.checkbox("🏷️ Marcar con Duda / Flag", key=f"fl_{q['id']}")
 
-                if st.button("Confirmar Respuesta", key=f"sub_{q['id']}"):
+                if st.button(
+                    "Confirmar Respuesta",
+                    key=f"sub_{q['id']}",
+                    disabled=banco_ya_respondida
+                ):
                     letra_elegida = resp_usr[0]
                     es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
 
@@ -1488,8 +1431,9 @@ elif menu == "📝 Banco de Choices & Simulacros":
 
                     st.session_state[f"ultimo_log_{q['id']}"] = log_id
                     st.session_state[f"respondido_{q['id']}"] = True
+                    st.rerun()
 
-                if st.session_state.get(f"respondido_{q['id']}", False):
+                if banco_ya_respondida:
                     letra_elegida = resp_usr[0]
                     es_correcta = 1 if letra_elegida == str(q['correcta']).strip().upper() else 0
 
@@ -1522,7 +1466,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                     err_actual.at[idx_log, "motivo_error"] = motivo_sel
                                     err_actual.at[idx_log, "regla_oro"] = nota_personal
                                     save_sheet_data("error_log", err_actual)
-                                    st.success("✅ Notita guardada en Google Sheets.") 
+                                    st.success("✅ Notita guardada en Google Sheets.")
 
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
@@ -1639,7 +1583,6 @@ elif menu == "📊 Estadísticas de Rendimiento":
             )
             st.plotly_chart(fig_p, use_container_width=True)
 
-    # Tabla de cobertura real del banco por especialidad
     if not choices_df.empty:
         st.markdown("---")
         st.subheader("📚 Cobertura Total del Banco por Especialidad")
@@ -1664,13 +1607,14 @@ elif menu == "📊 Estadísticas de Rendimiento":
         cobertura_area["% Cubierto"] = ((cobertura_area["Completadas"] / cobertura_area["Disponibles"]) * 100).round(1)
         cobertura_area = cobertura_area.rename(columns={"area": "Especialidad"})
 
-        st.dataframe(cobertura_area, use_container_width=True, hide_index=True) 
+        st.dataframe(cobertura_area, use_container_width=True, hide_index=True)
+
 # -------------------------------------------------------------
 # 8. CARGA DE EXÁMENES CSV
 # -------------------------------------------------------------
 elif menu == "⚙️ Cargar CSV / Exámenes":
     st.header("⚙️ Importar Lotes de Preguntas a Google Sheets")
-    
+
     uploaded_csv = st.file_uploader("Subir archivo CSV", type=["csv"])
     if uploaded_csv is not None:
         df_up = pd.read_csv(uploaded_csv)
