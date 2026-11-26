@@ -119,26 +119,31 @@ SPREADSHEET_URL = st.secrets.get("SPREADSHEET_URL", "")
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
-@st.cache_data(ttl=60)
 def _clean_id(val) -> str:
     s = str(val).strip()
+    if s.lower() in ["", "nan", "none", "nat"]:
+        return ""
     return s[:-2] if s.endswith(".0") else s
 
 @st.cache_data(ttl=60)
 def get_sheet_data(worksheet_name):
     try:
-        return conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=0)
+        df = conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=0)
+        if not df.empty:
+            df.columns = [str(c).strip() for c in df.columns]
+        return df
     except Exception:
         return pd.DataFrame()
 
 def save_sheet_data(worksheet_name, df):
     try:
-        conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
+        df_clean = df.copy()
+        df_clean.columns = [str(c).strip() for c in df_clean.columns]
+        df_clean = df_clean.fillna("")
+        conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df_clean)
         st.cache_data.clear()
-        st.session_state.pop("ultimo_error_sheets", None)
     except Exception as e:
-        st.session_state["ultimo_error_sheets"] = f"Error al guardar en '{worksheet_name}': {e}"
-        st.error(st.session_state["ultimo_error_sheets"]) 
+        st.error(f"Error al guardar en Google Sheets ({worksheet_name}): {e}")
 
 def guardar_notita_error(log_id, motivo: str, regla: str) -> bool:
     """Busca el registro en error_log normalizando el ID y guarda motivo y regla de oro."""
@@ -1615,28 +1620,22 @@ elif menu == "📕 Cuaderno de Errores":
     error_df = get_sheet_data("error_log")
     choices_df = get_sheet_data("choices")
 
-    def _norm_id_sheet(val) -> str:
-        s = str(val).strip()
-        if s.lower() in ["", "nan", "none", "nat"]:
-            return ""
-        if s.endswith(".0"):
-            s = s[:-2]
-        return s
-
-    if not error_df.empty:
+    if not error_df.empty and "username" in error_df.columns:
         df_err_usr = error_df.copy()
+        u_col = df_err_usr["username"].fillna("").astype(str).str.strip().str.lower()
+        usr_actual = str(st.session_state.current_user).strip().lower()
+        df_err_usr = df_err_usr[u_col == usr_actual].copy()
 
-        # Filtrar por usuario actual (incluyendo variantes históricas si es Luana)
-        if "username" in df_err_usr.columns:
-            u_col = df_err_usr["username"].fillna("").astype(str).str.strip().str.lower()
-            usr_actual = str(st.session_state.current_user).strip().lower()
-            if usr_actual == "luana":
-                df_err_usr = df_err_usr[u_col.isin(["luana", "dra. luana", "dra luana", "", "nan", "none"])].copy()
-            else:
-                df_err_usr = df_err_usr[u_col == usr_actual].copy()
+        # Excluir filas vacías o de plantilla sin fecha/respuesta real
+        df_err_usr["choice_id_str"] = df_err_usr["choice_id"].apply(_clean_id)
+        fecha_str = df_err_usr["fecha"].fillna("").astype(str).str.strip() if "fecha" in df_err_usr.columns else pd.Series("ok", index=df_err_usr.index)
+        resp_str = df_err_usr["respuesta_dada"].fillna("").astype(str).str.strip() if "respuesta_dada" in df_err_usr.columns else pd.Series("", index=df_err_usr.index)
 
-        df_err_usr["choice_id_str"] = df_err_usr["choice_id"].apply(_norm_id_sheet)
-        df_err_usr = df_err_usr[df_err_usr["choice_id_str"] != ""].copy()
+        df_err_usr = df_err_usr[
+            (df_err_usr["choice_id_str"] != "") &
+            (~fecha_str.str.lower().isin(["", "nan", "none"])) &
+            (~resp_str.str.lower().isin(["", "nan", "none"]))
+        ].copy()
 
         df_err_usr["es_correcta_num"] = pd.to_numeric(df_err_usr.get("es_correcta", 1), errors="coerce").fillna(1).astype(int)
         df_err_usr["flag_duda_num"] = pd.to_numeric(df_err_usr.get("flag_duda", 0), errors="coerce").fillna(0).astype(int)
@@ -1652,10 +1651,7 @@ elif menu == "📕 Cuaderno de Errores":
         df_err_usr["regla_oro"] = df_err_usr["regla_oro"].fillna("").astype(str).str.strip()
         df_err_usr["motivo_error"] = df_err_usr["motivo_error"].fillna("").astype(str).str.strip()
 
-        # Rescatar si alguna vez falló, marcó duda o escribió una nota
-        alguna_vez_fallo = set(df_err_usr[df_err_usr["es_correcta_num"] == 0]["choice_id_str"])
-        alguna_vez_duda = set(df_err_usr[df_err_usr["flag_duda_num"] == 1]["choice_id_str"])
-
+        # Conservar la última nota y motivo guardados por cada pregunta única
         notas_por_choice = (
             df_err_usr[df_err_usr["regla_oro"] != ""]
             .groupby("choice_id_str")["regla_oro"]
@@ -1668,6 +1664,10 @@ elif menu == "📕 Cuaderno de Errores":
             .last()
             .to_dict()
         )
+
+        # Incluir preguntas falladas, marcadas con duda o con notita escrita
+        alguna_vez_fallo = set(df_err_usr[df_err_usr["es_correcta_num"] == 0]["choice_id_str"])
+        alguna_vez_duda = set(df_err_usr[df_err_usr["flag_duda_num"] == 1]["choice_id_str"])
 
         df_fallos_o_notas = df_err_usr[
             (df_err_usr["choice_id_str"].isin(alguna_vez_fallo | alguna_vez_duda)) |
@@ -1684,21 +1684,18 @@ elif menu == "📕 Cuaderno de Errores":
 
         if not choices_df.empty:
             choices_clean = choices_df.copy()
-            choices_clean["id_str"] = choices_clean["id"].apply(_norm_id_sheet)
+            choices_clean["id_str"] = choices_clean["id"].apply(_clean_id)
             choices_clean = choices_clean[choices_clean["id_str"] != ""].drop_duplicates(subset=["id_str"], keep="first")
-
-            # Unión izquierda (how="left") para NO perder ninguna fila si el ID no está en choices
             merged = user_errors.merge(choices_clean, left_on="choice_id_str", right_on="id_str", how="left", suffixes=('_log', '_choice'))
         else:
             merged = user_errors.copy()
 
-        # Completar datos faltantes si alguna pregunta ya no está en choices
         for col_fb, default_val in [
-            ("area", "Sin Área Asignada"),
-            ("tema", "Tema registrado en bitácora"),
-            ("examen_origen", "Historial"),
-            ("pregunta", "(Enunciado no encontrado en la hoja 'choices')"),
-            ("justificacion", "Sin justificación vinculada."),
+            ("area", "General"),
+            ("tema", "Tema registrado"),
+            ("examen_origen", "Choice"),
+            ("pregunta", "Pregunta registrada"),
+            ("justificacion", "Sin justificación."),
             ("correcta", "-")
         ]:
             if col_fb not in merged.columns:
@@ -1709,7 +1706,7 @@ elif menu == "📕 Cuaderno de Errores":
         merged = pd.DataFrame()
 
     if merged.empty:
-        st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
+        st.success("✨ ¡Felicitaciones! Todavía no tenés errores ni dudas registradas.")
     else:
         col_a, col_r = st.columns([2, 1.5])
         with col_a:
@@ -1745,7 +1742,7 @@ elif menu == "📕 Cuaderno de Errores":
 
             for idx, row in df_area.iterrows():
                 log_id_raw = row["id_log"] if "id_log" in row else row.get("id", "")
-                log_id_clean = _norm_id_sheet(log_id_raw)
+                log_id_clean = _clean_id(log_id_raw)
                 regla_actual = str(row["regla_oro"]).strip() if pd.notna(row["regla_oro"]) else ""
                 tiene_nota = "💡 " if regla_actual != "" else ""
 
@@ -1773,12 +1770,7 @@ elif menu == "📕 Cuaderno de Errores":
                             st.success("✅ Guardado en Google Sheets.")
                             st.rerun()
                         else:
-                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")
-
-    with st.expander("🔍 Diagnóstico de lectura de Google Sheets (error_log)"):
-        st.write(f"Total de filas leídas en `error_log`: **{len(error_df)}**")
-        if not error_df.empty:
-            st.dataframe(error_df.tail(15), use_container_width=True)    
+                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")     
 
 # -------------------------------------------------------------
 # 7. ESTADÍSTICAS DEL USUARIO
