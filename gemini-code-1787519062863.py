@@ -135,8 +135,10 @@ def save_sheet_data(worksheet_name, df):
     try:
         conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
         st.cache_data.clear()
+        st.session_state.pop("ultimo_error_sheets", None)
     except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}")
+        st.session_state["ultimo_error_sheets"] = f"Error al guardar en '{worksheet_name}': {e}"
+        st.error(st.session_state["ultimo_error_sheets"]) 
 
 def guardar_notita_error(log_id, motivo: str, regla: str) -> bool:
     """Busca el registro en error_log normalizando el ID y guarda motivo y regla de oro."""
@@ -1613,21 +1615,31 @@ elif menu == "📕 Cuaderno de Errores":
     error_df = get_sheet_data("error_log")
     choices_df = get_sheet_data("choices")
 
-    if not error_df.empty and not choices_df.empty:
-        user_errors = error_df[
-            (error_df["username"].astype(str) == str(st.session_state.current_user)) &
-            ((error_df["es_correcta"] == 0) | (error_df["flag_duda"] == 1))
+    if not error_df.empty and not choices_df.empty and "username" in error_df.columns:
+        df_err_usr = error_df[
+            error_df["username"].astype(str).str.strip().str.lower() == str(st.session_state.current_user).strip().lower()
         ].copy()
 
-        user_errors["choice_id_str"] = user_errors["choice_id"].astype(str).str.strip()
-        choices_df["id_str"] = choices_df["id"].astype(str).str.strip()
+        df_err_usr["es_correcta_num"] = pd.to_numeric(df_err_usr["es_correcta"], errors="coerce").fillna(1).astype(int)
+        df_err_usr["flag_duda_num"] = pd.to_numeric(df_err_usr.get("flag_duda", 0), errors="coerce").fillna(0).astype(int)
+
+        user_errors = df_err_usr[
+            (df_err_usr["es_correcta_num"] == 0) | (df_err_usr["flag_duda_num"] == 1)
+        ].copy()
+
+        user_errors["choice_id_str"] = user_errors["choice_id"].apply(_clean_id)
+        choices_df["id_str"] = choices_df["id"].apply(_clean_id)
 
         merged = user_errors.merge(choices_df, left_on="choice_id_str", right_on="id_str", suffixes=('_log', '_choice'))
     else:
+        user_errors = pd.DataFrame()
         merged = pd.DataFrame()
 
     if merged.empty:
-        st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
+        if not user_errors.empty:
+            st.warning(f"Tenés {len(user_errors)} errores/dudas en Google Sheets, pero sus IDs no coincidieron con la hoja 'choices'.")
+        else:
+            st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
     else:
         col_a, col_r = st.columns([2, 1.5])
         with col_a:
@@ -1641,14 +1653,17 @@ elif menu == "📕 Cuaderno de Errores":
             df_area = df_area[df_area["area"] == area_err_sel]
 
         if solo_notas:
-            con_nota = df_area[
-                df_area["regla_oro"].notna() &
-                (df_area["regla_oro"].astype(str).str.strip() != "")
-            ][["area", "motivo_error", "regla_oro"]].rename(columns={
-                "area": "Área",
-                "motivo_error": "Motivo",
-                "regla_oro": "💡 Mi Nota / Regla"
-            })
+            if "regla_oro" in df_area.columns:
+                con_nota = df_area[
+                    df_area["regla_oro"].notna() &
+                    (df_area["regla_oro"].astype(str).str.strip() != "")
+                ][["area", "motivo_error", "regla_oro"]].rename(columns={
+                    "area": "Área",
+                    "motivo_error": "Motivo",
+                    "regla_oro": "💡 Mi Nota / Regla"
+                })
+            else:
+                con_nota = pd.DataFrame()
 
             if con_nota.empty:
                 st.info("Todavía no tenés notas guardadas en esta selección. Desmarcá 'Modo Resumen' para escribir tus notas en las preguntas.")
@@ -1659,20 +1674,35 @@ elif menu == "📕 Cuaderno de Errores":
             motivos_lista = ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"]
 
             for idx, row in df_area.iterrows():
-                tiene_nota = "💡 " if (pd.notna(row["regla_oro"]) and str(row["regla_oro"]).strip() != "") else ""
+                log_id_clean = _clean_id(row["id_log"])
+                regla_actual = str(row["regla_oro"]) if ("regla_oro" in row and pd.notna(row["regla_oro"])) else ""
+                tiene_nota = "💡 " if regla_actual.strip() != "" else ""
+
                 with st.expander(f"❌ {tiene_nota}{row['area']} | {row['tema']} ({row['examen_origen']}) | Tu opción: {row['respuesta_dada']} | Correcta: {row['correcta']}"):
                     st.write(f"**Enunciado:** {row['pregunta']}")
                     st.write(f"**Justificación:** {row['justificacion']}")
 
-                    motivo_actual = str(row["motivo_error"]) if pd.notna(row["motivo_error"]) and str(row["motivo_error"]) in motivos_lista else motivos_lista[0]
-                    motivo = st.selectbox("¿Por qué fallaste?", motivos_lista, index=motivos_lista.index(motivo_actual), key=f"mot_{row['id_log']}")
-                    regla = st.text_input("💡 Tu notita / regla para evitarlo la próxima:", value=str(row['regla_oro']) if pd.notna(row['regla_oro']) else "", key=f"reg_{row['id_log']}")
+                    mot_val = str(row["motivo_error"]) if ("motivo_error" in row and pd.notna(row["motivo_error"])) else ""
+                    motivo_actual = mot_val if mot_val in motivos_lista else motivos_lista[0]
 
-                    if st.button("Guardar en mi Bitácora", key=f"save_b_{row['id_log']}"):
-                        if guardar_notita_error(row["id_log"], motivo, regla):
+                    motivo = st.selectbox(
+                        "¿Por qué fallaste?",
+                        motivos_lista,
+                        index=motivos_lista.index(motivo_actual),
+                        key=f"mot_{idx}_{log_id_clean}"
+                    )
+                    regla = st.text_input(
+                        "💡 Tu notita / regla para evitarlo la próxima:",
+                        value=regla_actual,
+                        key=f"reg_{idx}_{log_id_clean}"
+                    )
+
+                    if st.button("Guardar en mi Bitácora", key=f"save_b_{idx}_{log_id_clean}"):
+                        if guardar_notita_error(log_id_clean, motivo, regla):
                             st.success("✅ Guardado en Google Sheets.")
+                            st.rerun()
                         else:
-                            st.warning("⚠️ No se pudo actualizar la fila en Google Sheets.") 
+                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")  
 
 # -------------------------------------------------------------
 # 7. ESTADÍSTICAS DEL USUARIO
@@ -1684,7 +1714,9 @@ elif menu == "📊 Estadísticas de Rendimiento":
     choices_df = get_sheet_data("choices")
 
     if not error_df.empty and not choices_df.empty and "username" in error_df.columns:
-        user_logs = error_df[error_df["username"].astype(str).str.lower() == str(st.session_state.current_user).lower()].copy()
+        user_logs = error_df[
+            error_df["username"].astype(str).str.strip().str.lower() == str(st.session_state.current_user).strip().lower()
+        ].copy()
         user_logs["choice_id_str"] = user_logs["choice_id"].apply(_clean_id)
         choices_df["id_str"] = choices_df["id"].apply(_clean_id)
         metrics_df = user_logs.merge(choices_df, left_on="choice_id_str", right_on="id_str")
@@ -1692,7 +1724,7 @@ elif menu == "📊 Estadísticas de Rendimiento":
             metrics_df["es_correcta"] = pd.to_numeric(metrics_df["es_correcta"], errors="coerce").fillna(0).astype(int)
     else:
         user_logs = pd.DataFrame(columns=["choice_id_str"])
-        metrics_df = pd.DataFrame() 
+        metrics_df = pd.DataFrame()
 
     if metrics_df.empty:
         st.info("Aún no tenés suficientes preguntas resueltas para generar gráficos.")
@@ -1727,7 +1759,7 @@ elif menu == "📊 Estadísticas de Rendimiento":
 
         df_c_cov = choices_df.copy()
         if "id_str" not in df_c_cov.columns:
-            df_c_cov["id_str"] = df_c_cov["id"].astype(str).str.strip()
+            df_c_cov["id_str"] = df_c_cov["id"].apply(_clean_id)
 
         if filtro_pais == "🇦🇷 Solo Argentina":
             df_c_cov = df_c_cov[df_c_cov["examen_origen"].astype(str).str.lower().str.contains("unico|único|caba|eres|argentina", na=False)]
@@ -1745,21 +1777,4 @@ elif menu == "📊 Estadísticas de Rendimiento":
         cobertura_area["% Cubierto"] = ((cobertura_area["Completadas"] / cobertura_area["Disponibles"]) * 100).round(1)
         cobertura_area = cobertura_area.rename(columns={"area": "Especialidad"})
 
-        st.dataframe(cobertura_area, use_container_width=True, hide_index=True)
-
-# -------------------------------------------------------------
-# 8. CARGA DE EXÁMENES CSV
-# -------------------------------------------------------------
-elif menu == "⚙️ Cargar CSV / Exámenes":
-    st.header("⚙️ Importar Lotes de Preguntas a Google Sheets")
-
-    uploaded_csv = st.file_uploader("Subir archivo CSV", type=["csv"])
-    if uploaded_csv is not None:
-        df_up = pd.read_csv(uploaded_csv)
-        st.write("Vista previa:")
-        st.dataframe(df_up.head(3))
-        if st.button("Guardar en Google Sheets"):
-            choices_df = get_sheet_data("choices")
-            updated = pd.concat([choices_df, df_up], ignore_index=True)
-            save_sheet_data("choices", updated)
-            st.success(f"¡Se agregaron {len(df_up)} preguntas a tu Google Sheet!") 
+        st.dataframe(cobertura_area, use_container_width=True, hide_index=True) 
