@@ -1620,13 +1620,10 @@ elif menu == "📕 Cuaderno de Errores":
             error_df["username"].astype(str).str.strip().str.lower() == str(st.session_state.current_user).strip().lower()
         ].copy()
 
-        # Excluir filas vacías o preguntas nunca respondidas realmente
+        # Quitar solo filas completamente vacías en choice_id
         df_err_usr["choice_id_str"] = df_err_usr["choice_id"].apply(_clean_id)
-        resp_validas = df_err_usr["respuesta_dada"].fillna("").astype(str).str.strip()
         df_err_usr = df_err_usr[
-            (~df_err_usr["choice_id_str"].str.lower().isin(["", "nan", "none"])) &
-            (resp_validas != "") &
-            (~resp_validas.str.lower().isin(["nan", "none"]))
+            ~df_err_usr["choice_id_str"].str.lower().isin(["", "nan", "none"])
         ].copy()
 
         df_err_usr["es_correcta_num"] = pd.to_numeric(df_err_usr["es_correcta"], errors="coerce").fillna(1).astype(int)
@@ -1635,7 +1632,6 @@ elif menu == "📕 Cuaderno de Errores":
         if "fecha" in df_err_usr.columns:
             df_err_usr = df_err_usr.sort_values("fecha", ascending=True)
 
-        # Conservar la última nota/motivo no vacío por cada pregunta única
         if "regla_oro" not in df_err_usr.columns:
             df_err_usr["regla_oro"] = ""
         if "motivo_error" not in df_err_usr.columns:
@@ -1643,6 +1639,10 @@ elif menu == "📕 Cuaderno de Errores":
 
         df_err_usr["regla_oro"] = df_err_usr["regla_oro"].fillna("").astype(str).str.strip()
         df_err_usr["motivo_error"] = df_err_usr["motivo_error"].fillna("").astype(str).str.strip()
+
+        # Rescatar si ALGUNA VEZ falló, marcó duda o guardó nota en esa pregunta
+        alguna_vez_fallo = set(df_err_usr[df_err_usr["es_correcta_num"] == 0]["choice_id_str"])
+        alguna_vez_duda = set(df_err_usr[df_err_usr["flag_duda_num"] == 1]["choice_id_str"])
 
         notas_por_choice = (
             df_err_usr[df_err_usr["regla_oro"] != ""]
@@ -1657,14 +1657,19 @@ elif menu == "📕 Cuaderno de Errores":
             .to_dict()
         )
 
-        # Quedarse con 1 fila por pregunta única (el último intento) y filtrar fallos o dudas
-        df_ultimos = df_err_usr.drop_duplicates(subset=["choice_id_str"], keep="last").copy()
-        df_ultimos["regla_oro"] = df_ultimos["choice_id_str"].map(notas_por_choice).fillna(df_ultimos["regla_oro"])
-        df_ultimos["motivo_error"] = df_ultimos["choice_id_str"].map(motivos_por_choice).fillna(df_ultimos["motivo_error"])
-
-        user_errors = df_ultimos[
-            (df_ultimos["es_correcta_num"] == 0) | (df_ultimos["flag_duda_num"] == 1)
+        # Preferir el último intento donde falló/dudó para mostrar la opción equivocada, o el último registro
+        df_fallos_o_notas = df_err_usr[
+            (df_err_usr["choice_id_str"].isin(alguna_vez_fallo | alguna_vez_duda)) |
+            (df_err_usr["regla_oro"] != "")
         ].copy()
+
+        # Ordenar para que si tiene intento fallido quede como referencia de "Tu opción"
+        df_fallos_o_notas["_prio"] = (df_fallos_o_notas["es_correcta_num"] == 0).astype(int)
+        df_fallos_o_notas = df_fallos_o_notas.sort_values(["_prio", "fecha"] if "fecha" in df_fallos_o_notas.columns else ["_prio"], ascending=True)
+
+        user_errors = df_fallos_o_notas.drop_duplicates(subset=["choice_id_str"], keep="last").copy()
+        user_errors["regla_oro"] = user_errors["choice_id_str"].map(notas_por_choice).fillna(user_errors["regla_oro"])
+        user_errors["motivo_error"] = user_errors["choice_id_str"].map(motivos_por_choice).fillna(user_errors["motivo_error"])
 
         choices_clean = choices_df.copy()
         choices_clean["id_str"] = choices_clean["id"].apply(_clean_id)
@@ -1739,7 +1744,7 @@ elif menu == "📕 Cuaderno de Errores":
                             st.success("✅ Guardado en Google Sheets.")
                             st.rerun()
                         else:
-                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")   
+                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")    
 
 # -------------------------------------------------------------
 # 7. ESTADÍSTICAS DEL USUARIO
