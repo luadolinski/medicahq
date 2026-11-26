@@ -120,9 +120,14 @@ def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 @st.cache_data(ttl=60)
+def _clean_id(val) -> str:
+    s = str(val).strip()
+    return s[:-2] if s.endswith(".0") else s
+
+@st.cache_data(ttl=60)
 def get_sheet_data(worksheet_name):
     try:
-        return conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl="60s")
+        return conn.read(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, ttl=0)
     except Exception:
         return pd.DataFrame()
 
@@ -131,7 +136,7 @@ def save_sheet_data(worksheet_name, df):
         conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}")
+        st.error(f"Error al guardar en Google Sheets: {e}") 
 
 def calcular_racha_activa(username, error_df, progreso_df):
     """Calcula los días consecutivos de actividad para un usuario."""
@@ -963,6 +968,11 @@ elif menu == "📚 Algoritmos y Quiz Diario":
     with t4:
         st.subheader("🎯 Quiz Rápido del Tema")
 
+        tema_tag = tema_limpio[:20]
+        batch_gen_key = f"batch_gen_t4_{tema_tag}"
+        if batch_gen_key not in st.session_state:
+            st.session_state[batch_gen_key] = 0
+
         col_q1, col_q2, col_q3 = st.columns([2, 1.5, 1.2])
         with col_q1:
             cant_preguntas = st.slider(
@@ -971,20 +981,23 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 max_value=30,
                 value=15,
                 step=1,
-                key=f"cant_q_{tema_limpio[:20]}"
+                key=f"cant_q_{tema_tag}"
             )
         with col_q2:
             solo_nuevas_t4 = st.checkbox(
                 "🆕 Solo preguntas nuevas",
                 value=True,
-                key=f"nuevas_t4_{tema_limpio[:20]}"
+                key=f"nuevas_t4_{tema_tag}"
             )
         with col_q3:
             st.write("")
-            if st.button("🔄 Nueva tanda", key=f"refresh_t4_{tema_limpio[:20]}"):
-                st.session_state[f"seed_t4_{tema_limpio[:20]}"] = random.randint(1, 999999)
-                st.session_state.pop(f"batch_ids_t4_{tema_limpio[:20]}", None)
+            if st.button("🔄 Nueva tanda", key=f"refresh_t4_{tema_tag}"):
+                st.session_state[batch_gen_key] += 1
+                st.session_state[f"seed_t4_{tema_tag}"] = random.randint(1, 999999)
+                st.session_state.pop(f"batch_ids_t4_{tema_tag}", None)
                 st.rerun()
+
+        b_gen = st.session_state[batch_gen_key]
 
         def _norm(txt: str) -> str:
             reemplazos = str.maketrans("áéíóúüñÁÉÍÓÚÜÑ", "aeiouunAEIOUUN")
@@ -1032,13 +1045,13 @@ elif menu == "📚 Algoritmos y Quiz Diario":
 
         choices_df = get_sheet_data("choices")
         err_t4_df = get_sheet_data("error_log")
-        hechas_t4_ids = set()
+        hechas_t4_ids = set(st.session_state.get("hechas_sesion_local", set()))
         if not err_t4_df.empty and "username" in err_t4_df.columns:
-            hechas_t4_ids = set(
-                err_t4_df[err_t4_df["username"].astype(str) == str(st.session_state.current_user)]["choice_id"].astype(str).str.strip()
-            )
+            logs_u = err_t4_df[err_t4_df["username"].astype(str).str.lower() == str(st.session_state.current_user).lower()]
+            hechas_t4_ids.update(logs_u["choice_id"].apply(_clean_id))
 
         quiz_q = pd.DataFrame()
+        total_encontradas_tema = 0
 
         if not choices_df.empty and "tema" in choices_df.columns and kws_especificas:
             df_busqueda = choices_df.copy()
@@ -1079,7 +1092,7 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 scores += preg_col.str.contains(pat_kw, na=False).astype(int) * 1
 
             df_busqueda["_score"] = scores
-            df_busqueda["id_str"] = df_busqueda["id"].astype(str).str.strip()
+            df_busqueda["id_str"] = df_busqueda["id"].apply(_clean_id)
             df_filtradas = df_busqueda[df_busqueda["_score"] > 0].sort_values("_score", ascending=False).copy()
 
             total_encontradas_tema = len(df_filtradas)
@@ -1089,15 +1102,13 @@ elif menu == "📚 Algoritmos y Quiz Diario":
             else:
                 df_candidatas = df_filtradas.copy()
 
-            # Congelar la tanda actual por tema y cantidad para que no salte al responder P1, P2...
-            batch_key = f"batch_ids_t4_{tema_limpio[:20]}"
-            meta_key = f"batch_meta_t4_{tema_limpio[:20]}"
-            meta_actual = (cant_preguntas, solo_nuevas_t4, filtro_pais)
+            batch_key = f"batch_ids_t4_{tema_tag}"
+            meta_key = f"batch_meta_t4_{tema_tag}"
+            meta_actual = (cant_preguntas, solo_nuevas_t4, filtro_pais, b_gen)
 
             if st.session_state.get(meta_key) != meta_actual or batch_key not in st.session_state:
-                seed_usr = st.session_state.setdefault(f"seed_t4_{tema_limpio[:20]}", random.randint(1, 999999))
+                seed_usr = st.session_state.setdefault(f"seed_t4_{tema_tag}", random.randint(1, 999999))
                 if not df_candidatas.empty:
-                    # Tomar un pool amplio de las más relevantes y mezclar
                     pool_tema = df_candidatas.head(max(cant_preguntas * 3, 45))
                     seleccion = pool_tema.sample(n=min(cant_preguntas, len(pool_tema)), random_state=seed_usr)
                     st.session_state[batch_key] = seleccion["id_str"].tolist()
@@ -1123,20 +1134,24 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                 f"(de **{total_encontradas_tema}** encontradas en total para este tema)."
             )
             for idx, (_, q_row) in enumerate(quiz_q.iterrows()):
-                t4_ya_respondida = st.session_state.get(f"t4_done_{q_row['id']}", False)
+                cid_clean = _clean_id(q_row["id"])
+                done_key = f"t4_done_{b_gen}_{idx}_{cid_clean}"
+                t4_ya_respondida = st.session_state.get(done_key, False)
+
                 st.markdown(f"**Pregunta {idx+1}:** {q_row['pregunta']}")
                 st.caption(f"📂 {q_row.get('area', '')} | 🏷️ Tema en base: *{q_row.get('tema', '')}*")
                 ans = st.radio(
                     f"Opciones para P{idx+1}:",
                     [f"A) {q_row['opcion_a']}", f"B) {q_row['opcion_b']}", f"C) {q_row['opcion_c']}", f"D) {q_row['opcion_d']}"],
-                    key=f"quiz_din_{idx}_{q_row['id']}"
+                    index=None,
+                    key=f"quiz_din_{b_gen}_{idx}_{cid_clean}"
                 )
-                duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{idx}_{q_row['id']}")
+                duda_t4 = st.checkbox("🏷️ Marcar con Duda", key=f"duda_t4_{b_gen}_{idx}_{cid_clean}")
 
                 if st.button(
                     f"Comprobar P{idx+1}",
-                    key=f"btn_din_{idx}_{q_row['id']}",
-                    disabled=t4_ya_respondida
+                    key=f"btn_din_{b_gen}_{idx}_{cid_clean}",
+                    disabled=(t4_ya_respondida or ans is None)
                 ):
                     ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
 
@@ -1145,7 +1160,7 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                     nueva_f = pd.DataFrame([{
                         "id": log_t4_id,
                         "username": st.session_state.current_user,
-                        "choice_id": str(q_row['id']),
+                        "choice_id": cid_clean,
                         "fecha": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         "respuesta_dada": ans[0],
                         "es_correcta": ok_t4,
@@ -1155,11 +1170,15 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                     }])
                     save_sheet_data("error_log", pd.concat([err_df, nueva_f], ignore_index=True))
 
-                    st.session_state[f"t4_log_{q_row['id']}"] = log_t4_id
-                    st.session_state[f"t4_done_{q_row['id']}"] = True
+                    locales = set(st.session_state.get("hechas_sesion_local", set()))
+                    locales.add(cid_clean)
+                    st.session_state["hechas_sesion_local"] = locales
+
+                    st.session_state[f"t4_log_{b_gen}_{cid_clean}"] = log_t4_id
+                    st.session_state[done_key] = True
                     st.rerun()
 
-                if t4_ya_respondida:
+                if t4_ya_respondida and ans is not None:
                     ok_t4 = 1 if ans[0] == str(q_row['correcta']).strip().upper() else 0
                     if ok_t4:
                         st.success(f"¡Correcto! Opción {q_row['correcta']}")
@@ -1173,16 +1192,16 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                             mot_t4 = st.selectbox(
                                 "¿Por qué fallaste?",
                                 ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"],
-                                key=f"mot_t4_{idx}_{q_row['id']}"
+                                key=f"mot_t4_{b_gen}_{idx}_{cid_clean}"
                             )
                             nota_t4 = st.text_input(
                                 "💡 Tu notita / regla para no volver a caer:",
                                 placeholder="Ej.: En embarazo se evita doxiciclina; en SUS notificar dentro de 24h...",
-                                key=f"nota_t4_{idx}_{q_row['id']}"
+                                key=f"nota_t4_{b_gen}_{idx}_{cid_clean}"
                             )
-                            if st.button("💾 Guardar Notita", key=f"save_t4_{idx}_{q_row['id']}"):
+                            if st.button("💾 Guardar Notita", key=f"save_t4_{b_gen}_{idx}_{cid_clean}"):
                                 err_act = get_sheet_data("error_log")
-                                lid = st.session_state.get(f"t4_log_{q_row['id']}")
+                                lid = st.session_state.get(f"t4_log_{b_gen}_{cid_clean}")
                                 if not err_act.empty and lid in err_act["id"].values:
                                     err_act["motivo_error"] = err_act["motivo_error"].fillna("").astype(object)
                                     err_act["regla_oro"] = err_act["regla_oro"].fillna("").astype(object)
@@ -1190,7 +1209,8 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                                     err_act.at[ix, "motivo_error"] = str(mot_t4)
                                     err_act.at[ix, "regla_oro"] = str(nota_t4)
                                     save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.") 
+                                    st.success("✅ Notita guardada en Google Sheets.")
+                st.markdown("---")  
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
@@ -1651,14 +1671,16 @@ elif menu == "📊 Estadísticas de Rendimiento":
     error_df = get_sheet_data("error_log")
     choices_df = get_sheet_data("choices")
 
-    if not error_df.empty and not choices_df.empty:
-        user_logs = error_df[error_df["username"].astype(str) == str(st.session_state.current_user)].copy()
-        user_logs["choice_id_str"] = user_logs["choice_id"].astype(str).str.strip()
-        choices_df["id_str"] = choices_df["id"].astype(str).str.strip()
+    if not error_df.empty and not choices_df.empty and "username" in error_df.columns:
+        user_logs = error_df[error_df["username"].astype(str).str.lower() == str(st.session_state.current_user).lower()].copy()
+        user_logs["choice_id_str"] = user_logs["choice_id"].apply(_clean_id)
+        choices_df["id_str"] = choices_df["id"].apply(_clean_id)
         metrics_df = user_logs.merge(choices_df, left_on="choice_id_str", right_on="id_str")
+        if not metrics_df.empty:
+            metrics_df["es_correcta"] = pd.to_numeric(metrics_df["es_correcta"], errors="coerce").fillna(0).astype(int)
     else:
         user_logs = pd.DataFrame(columns=["choice_id_str"])
-        metrics_df = pd.DataFrame()
+        metrics_df = pd.DataFrame() 
 
     if metrics_df.empty:
         st.info("Aún no tenés suficientes preguntas resueltas para generar gráficos.")
