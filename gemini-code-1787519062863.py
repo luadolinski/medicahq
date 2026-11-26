@@ -136,7 +136,36 @@ def save_sheet_data(worksheet_name, df):
         conn.update(spreadsheet=SPREADSHEET_URL, worksheet=worksheet_name, data=df)
         st.cache_data.clear()
     except Exception as e:
-        st.error(f"Error al guardar en Google Sheets: {e}") 
+        st.error(f"Error al guardar en Google Sheets: {e}")
+
+def guardar_notita_error(log_id, motivo: str, regla: str) -> bool:
+    """Busca el registro en error_log normalizando el ID y guarda motivo y regla de oro."""
+    if log_id is None:
+        return False
+    err_df = get_sheet_data("error_log")
+    if err_df.empty or "id" not in err_df.columns:
+        return False
+
+    ids_limpios = err_df["id"].apply(_clean_id)
+    target_id = _clean_id(log_id)
+    mask = ids_limpios == target_id
+
+    if not mask.any():
+        return False
+
+    if "motivo_error" not in err_df.columns:
+        err_df["motivo_error"] = ""
+    if "regla_oro" not in err_df.columns:
+        err_df["regla_oro"] = ""
+
+    err_df["motivo_error"] = err_df["motivo_error"].fillna("").astype(object)
+    err_df["regla_oro"] = err_df["regla_oro"].fillna("").astype(object)
+
+    ix = err_df[mask].index[-1]
+    err_df.at[ix, "motivo_error"] = str(motivo)
+    err_df.at[ix, "regla_oro"] = str(regla)
+    save_sheet_data("error_log", err_df)
+    return True 
 
 def calcular_racha_activa(username, error_df, progreso_df):
     """Calcula los días consecutivos de actividad para un usuario."""
@@ -805,17 +834,11 @@ elif menu == "🔁 Active Recall: Tu Repaso Espaciado":
                                 key=f"nota_srs_{idx_srs}_{q_srs['id']}"
                             )
                             if st.button("💾 Guardar Notita", key=f"save_srs_{idx_srs}_{q_srs['id']}"):
-                                err_act = get_sheet_data("error_log")
                                 lid = st.session_state.get(f"srs_log_{q_srs['id']}")
-                                if not err_act.empty and lid in err_act["id"].values:
-                                    err_act["motivo_error"] = err_act["motivo_error"].fillna("").astype(object)
-                                    err_act["regla_oro"] = err_act["regla_oro"].fillna("").astype(object)
-                                    ix = err_act[err_act["id"] == lid].index[-1]
-                                    err_act.at[ix, "motivo_error"] = str(mot_srs)
-                                    err_act.at[ix, "regla_oro"] = str(nota_srs)
-                                    save_sheet_data("error_log", err_act)
-                                    st.success("✅ Notita guardada en Google Sheets.") 
-
+                                if guardar_notita_error(lid, mot_srs, nota_srs):
+                                    st.success("✅ Notita guardada en Google Sheets.")
+                                else:
+                                    st.warning("⚠️ No se encontró el registro en Google Sheets. Intentá de nuevo.") 
 # -------------------------------------------------------------
 # 2. CRONOGRAMA SEMANAL DETALLADO CON CHECKLIST DINÁMICO
 # -------------------------------------------------------------
@@ -1200,17 +1223,11 @@ elif menu == "📚 Algoritmos y Quiz Diario":
                                 key=f"nota_t4_{b_gen}_{idx}_{cid_clean}"
                             )
                             if st.button("💾 Guardar Notita", key=f"save_t4_{b_gen}_{idx}_{cid_clean}"):
-                                err_act = get_sheet_data("error_log")
                                 lid = st.session_state.get(f"t4_log_{b_gen}_{cid_clean}")
-                                if not err_act.empty and lid in err_act["id"].values:
-                                    err_act["motivo_error"] = err_act["motivo_error"].fillna("").astype(object)
-                                    err_act["regla_oro"] = err_act["regla_oro"].fillna("").astype(object)
-                                    ix = err_act[err_act["id"] == lid].index[-1]
-                                    err_act.at[ix, "motivo_error"] = str(mot_t4)
-                                    err_act.at[ix, "regla_oro"] = str(nota_t4)
-                                    save_sheet_data("error_log", err_act)
+                                if guardar_notita_error(lid, mot_t4, nota_t4):
                                     st.success("✅ Notita guardada en Google Sheets.")
-                st.markdown("---")  
+                                else:
+                                    st.warning("⚠️ No se encontró el registro en Google Sheets. Intentá de nuevo.") 
 
 # -------------------------------------------------------------
 # 4. GENERADOR AUTOMÁTICO DE CHOICES CON IA (CON 'OTROS')
@@ -1581,17 +1598,12 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                 key=f"nota_{q['id']}"
                             )
                             if st.button("💾 Guardar Notita en Cuaderno", key=f"save_nota_{q['id']}"):
-                                err_actual = get_sheet_data("error_log")
                                 log_target = st.session_state.get(f"ultimo_log_{q['id']}")
-                                if not err_actual.empty and log_target in err_actual["id"].values:
-                                    err_actual["motivo_error"] = err_actual["motivo_error"].fillna("").astype(object)
-                                    err_actual["regla_oro"] = err_actual["regla_oro"].fillna("").astype(object)
-                                    idx_log = err_actual[err_actual["id"] == log_target].index[-1]
-                                    err_actual.at[idx_log, "motivo_error"] = str(motivo_sel)
-                                    err_actual.at[idx_log, "regla_oro"] = str(nota_personal)
-                                    save_sheet_data("error_log", err_actual)
-                                    st.success("✅ Notita guardada en Google Sheets.")  
-
+                                if guardar_notita_error(log_target, motivo_sel, nota_personal):
+                                    st.success("✅ Notita guardada en Google Sheets.")
+                                else:
+                                    st.warning("⚠️ No se encontró el registro en Google Sheets. Intentá de nuevo.") 
+                                    
 # -------------------------------------------------------------
 # 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
 # -------------------------------------------------------------
@@ -1657,10 +1669,10 @@ elif menu == "📕 Cuaderno de Errores":
                     regla = st.text_input("💡 Tu notita / regla para evitarlo la próxima:", value=str(row['regla_oro']) if pd.notna(row['regla_oro']) else "", key=f"reg_{row['id_log']}")
 
                     if st.button("Guardar en mi Bitácora", key=f"save_b_{row['id_log']}"):
-                        error_df.loc[error_df["id"] == row["id_log"], "motivo_error"] = motivo
-                        error_df.loc[error_df["id"] == row["id_log"], "regla_oro"] = regla
-                        save_sheet_data("error_log", error_df)
-                        st.success("Guardado en Google Sheets.")
+                        if guardar_notita_error(row["id_log"], motivo, regla):
+                            st.success("✅ Guardado en Google Sheets.")
+                        else:
+                            st.warning("⚠️ No se pudo actualizar la fila en Google Sheets.") 
 
 # -------------------------------------------------------------
 # 7. ESTADÍSTICAS DEL USUARIO
