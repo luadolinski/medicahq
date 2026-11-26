@@ -1607,7 +1607,7 @@ elif menu == "📝 Banco de Choices & Simulacros":
                                     st.warning("⚠️ No se encontró el registro en Google Sheets. Intentá de nuevo.") 
                                     
 # -------------------------------------------------------------
-# 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN DE NOTAS)
+# 6. CUADERNO DE ERRORES (POR ÁREA + MODO RESUMEN ESCRITO)
 # -------------------------------------------------------------
 elif menu == "📕 Cuaderno de Errores":
     st.header(f"📕 Libro de Errores | {st.session_state.user_name}")
@@ -1620,69 +1620,106 @@ elif menu == "📕 Cuaderno de Errores":
             error_df["username"].astype(str).str.strip().str.lower() == str(st.session_state.current_user).strip().lower()
         ].copy()
 
+        # Excluir filas vacías o preguntas nunca respondidas realmente
+        df_err_usr["choice_id_str"] = df_err_usr["choice_id"].apply(_clean_id)
+        resp_validas = df_err_usr["respuesta_dada"].fillna("").astype(str).str.strip()
+        df_err_usr = df_err_usr[
+            (~df_err_usr["choice_id_str"].str.lower().isin(["", "nan", "none"])) &
+            (resp_validas != "") &
+            (~resp_validas.str.lower().isin(["nan", "none"]))
+        ].copy()
+
         df_err_usr["es_correcta_num"] = pd.to_numeric(df_err_usr["es_correcta"], errors="coerce").fillna(1).astype(int)
         df_err_usr["flag_duda_num"] = pd.to_numeric(df_err_usr.get("flag_duda", 0), errors="coerce").fillna(0).astype(int)
 
-        user_errors = df_err_usr[
-            (df_err_usr["es_correcta_num"] == 0) | (df_err_usr["flag_duda_num"] == 1)
+        if "fecha" in df_err_usr.columns:
+            df_err_usr = df_err_usr.sort_values("fecha", ascending=True)
+
+        # Conservar la última nota/motivo no vacío por cada pregunta única
+        if "regla_oro" not in df_err_usr.columns:
+            df_err_usr["regla_oro"] = ""
+        if "motivo_error" not in df_err_usr.columns:
+            df_err_usr["motivo_error"] = ""
+
+        df_err_usr["regla_oro"] = df_err_usr["regla_oro"].fillna("").astype(str).str.strip()
+        df_err_usr["motivo_error"] = df_err_usr["motivo_error"].fillna("").astype(str).str.strip()
+
+        notas_por_choice = (
+            df_err_usr[df_err_usr["regla_oro"] != ""]
+            .groupby("choice_id_str")["regla_oro"]
+            .last()
+            .to_dict()
+        )
+        motivos_por_choice = (
+            df_err_usr[df_err_usr["motivo_error"] != ""]
+            .groupby("choice_id_str")["motivo_error"]
+            .last()
+            .to_dict()
+        )
+
+        # Quedarse con 1 fila por pregunta única (el último intento) y filtrar fallos o dudas
+        df_ultimos = df_err_usr.drop_duplicates(subset=["choice_id_str"], keep="last").copy()
+        df_ultimos["regla_oro"] = df_ultimos["choice_id_str"].map(notas_por_choice).fillna(df_ultimos["regla_oro"])
+        df_ultimos["motivo_error"] = df_ultimos["choice_id_str"].map(motivos_por_choice).fillna(df_ultimos["motivo_error"])
+
+        user_errors = df_ultimos[
+            (df_ultimos["es_correcta_num"] == 0) | (df_ultimos["flag_duda_num"] == 1)
         ].copy()
 
-        user_errors["choice_id_str"] = user_errors["choice_id"].apply(_clean_id)
-        choices_df["id_str"] = choices_df["id"].apply(_clean_id)
+        choices_clean = choices_df.copy()
+        choices_clean["id_str"] = choices_clean["id"].apply(_clean_id)
+        choices_clean = choices_clean[~choices_clean["id_str"].str.lower().isin(["", "nan", "none"])]
+        choices_clean = choices_clean.drop_duplicates(subset=["id_str"], keep="first")
 
-        merged = user_errors.merge(choices_df, left_on="choice_id_str", right_on="id_str", suffixes=('_log', '_choice'))
+        merged = user_errors.merge(choices_clean, left_on="choice_id_str", right_on="id_str", suffixes=('_log', '_choice'))
     else:
-        user_errors = pd.DataFrame()
         merged = pd.DataFrame()
 
     if merged.empty:
-        if not user_errors.empty:
-            st.warning(f"Tenés {len(user_errors)} errores/dudas en Google Sheets, pero sus IDs no coincidieron con la hoja 'choices'.")
-        else:
-            st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
+        st.success("✨ ¡Felicitaciones! No tenés errores ni dudas registradas.")
     else:
         col_a, col_r = st.columns([2, 1.5])
         with col_a:
             areas_err = ["Todas las áreas"] + sorted(list(merged["area"].dropna().unique()))
             area_err_sel = st.selectbox("Filtrar por Área:", areas_err)
         with col_r:
-            solo_notas = st.checkbox("📖 Modo Resumen (Solo mis notas)", value=False)
+            solo_notas = st.checkbox("📖 Modo Resumen Escrito (Solo mis notas)", value=False)
 
         df_area = merged.copy()
         if area_err_sel != "Todas las áreas":
             df_area = df_area[df_area["area"] == area_err_sel]
 
         if solo_notas:
-            if "regla_oro" in df_area.columns:
-                con_nota = df_area[
-                    df_area["regla_oro"].notna() &
-                    (df_area["regla_oro"].astype(str).str.strip() != "")
-                ][["area", "motivo_error", "regla_oro"]].rename(columns={
-                    "area": "Área",
-                    "motivo_error": "Motivo",
-                    "regla_oro": "💡 Mi Nota / Regla"
-                })
-            else:
-                con_nota = pd.DataFrame()
+            con_nota = df_area[df_area["regla_oro"].astype(str).str.strip() != ""].copy()
+            con_nota = con_nota.drop_duplicates(subset=["area", "tema", "regla_oro"])
 
             if con_nota.empty:
-                st.info("Todavía no tenés notas guardadas en esta selección. Desmarcá 'Modo Resumen' para escribir tus notas en las preguntas.")
+                st.info("Todavía no tenés notas guardadas en esta selección. Desmarcá 'Modo Resumen Escrito' para escribir tus notas en las preguntas.")
             else:
-                st.dataframe(con_nota, use_container_width=True, hide_index=True)
+                st.caption(f"📝 Resumen escrito con **{len(con_nota)}** reglas de oro guardadas:")
+                for area_nombre, grupo_area in con_nota.groupby("area"):
+                    st.markdown(f"### 📂 {area_nombre}")
+                    for _, item_n in grupo_area.iterrows():
+                        tema_txt = str(item_n.get("tema", "")).strip()
+                        motivo_txt = str(item_n.get("motivo_error", "")).strip()
+                        regla_txt = str(item_n.get("regla_oro", "")).strip()
+                        etiqueta_motivo = f" *({motivo_txt})*" if motivo_txt else ""
+                        st.markdown(f"- **{tema_txt}**{etiqueta_motivo}: {regla_txt}")
+                    st.markdown("---")
         else:
-            st.info(f"Tenés **{len(df_area)} preguntas registradas** en esta vista.")
+            st.info(f"Tenés **{len(df_area)} preguntas únicas** registradas en esta vista.")
             motivos_lista = ["Error de lectura / Apuro", "Duda 50/50", "Falta de teoría", "Confusión de dosis", "Diferencia guía AR vs BR"]
 
             for idx, row in df_area.iterrows():
                 log_id_clean = _clean_id(row["id_log"])
-                regla_actual = str(row["regla_oro"]) if ("regla_oro" in row and pd.notna(row["regla_oro"])) else ""
-                tiene_nota = "💡 " if regla_actual.strip() != "" else ""
+                regla_actual = str(row["regla_oro"]).strip() if pd.notna(row["regla_oro"]) else ""
+                tiene_nota = "💡 " if regla_actual != "" else ""
 
                 with st.expander(f"❌ {tiene_nota}{row['area']} | {row['tema']} ({row['examen_origen']}) | Tu opción: {row['respuesta_dada']} | Correcta: {row['correcta']}"):
                     st.write(f"**Enunciado:** {row['pregunta']}")
                     st.write(f"**Justificación:** {row['justificacion']}")
 
-                    mot_val = str(row["motivo_error"]) if ("motivo_error" in row and pd.notna(row["motivo_error"])) else ""
+                    mot_val = str(row["motivo_error"]).strip() if pd.notna(row["motivo_error"]) else ""
                     motivo_actual = mot_val if mot_val in motivos_lista else motivos_lista[0]
 
                     motivo = st.selectbox(
@@ -1702,7 +1739,7 @@ elif menu == "📕 Cuaderno de Errores":
                             st.success("✅ Guardado en Google Sheets.")
                             st.rerun()
                         else:
-                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")  
+                            st.warning("⚠️ No se pudo encontrar la fila en 'error_log'.")   
 
 # -------------------------------------------------------------
 # 7. ESTADÍSTICAS DEL USUARIO
